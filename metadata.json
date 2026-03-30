@@ -1,0 +1,5 @@
+{
+  "name": "BarberQueue",
+  "description": "Virtual Queue System for a Barbershop with real-time updates and admin management.",
+  "requestFramePermissions": []
+}
