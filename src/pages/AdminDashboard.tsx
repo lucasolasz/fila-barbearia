@@ -22,6 +22,7 @@ import {
   X,
   Power,
   MessageCircle,
+  DoorOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -467,7 +468,7 @@ export default function AdminDashboard() {
           <div className="flex items-center space-x-2">
             <button
               onClick={handleToggleManualStatus}
-              className={`flex items-center space-x-2 rounded-xl px-3 py-2 text-sm font-bold transition-all ${
+              className={`flex items-center sm:space-x-2 rounded-xl px-4 py-3 text-sm font-bold transition-all ${
                 manualStatus === "auto"
                   ? "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
                   : manualStatus === "open"
@@ -483,7 +484,7 @@ export default function AdminDashboard() {
               }
             >
               <Power
-                className={`h-4 w-4 ${manualStatus !== "auto" ? "fill-current" : ""}`}
+                className={`h-4 w-4 ${manualStatus !== "auto" ? "" : ""}`}
               />
               <span className="hidden sm:inline">
                 {manualStatus === "auto"
