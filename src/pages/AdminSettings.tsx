@@ -156,7 +156,8 @@ export default function AdminSettings() {
         ]);
       }
 
-      toast.success("Configurações salvas com sucesso");
+      const id = toast.success("Configurações salvas com sucesso!");
+      setTimeout(() => toast.dismiss(id), 1800);
     } catch (error) {
       toast.error("Falha ao salvar configurações");
     } finally {

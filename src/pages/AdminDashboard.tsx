@@ -150,9 +150,12 @@ export default function AdminDashboard() {
           .insert([{ manual_status: newStatus }]);
       }
       setManualStatus(newStatus);
-      toast.success(
+      const id = toast.success(
         `Fila em modo ${newStatus === "auto" ? "Automático" : newStatus === "open" ? "Aberto" : "Fechado"}`,
       );
+      setTimeout(() => {
+        toast.dismiss(id);
+      }, 1800);
     } catch (error) {
       console.error(error);
       toast.error("Falha ao atualizar status da fila");

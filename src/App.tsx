@@ -17,7 +17,6 @@ import AdminSettings from "./pages/AdminSettings";
 import AdminHistory from "./pages/AdminHistory";
 import { Toaster } from "react-hot-toast";
 import { ShopSettingsProvider, useShopSettings } from "./hooks/useShopSettings";
-import PaginaTeste from "./pages/PaginaTeste";
 
 // Componente para gerenciar a sessão global e redirecionamentos automáticos
 function SessionManager({ children }: { children: React.ReactNode }) {
@@ -100,10 +99,8 @@ function AppContent() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/admin/history" element={<AdminHistory />} />
-            <Route path="/teste" element={<PaginaTeste />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <Toaster position="top-center" />
         </div>
       </SessionManager>
     </Router>
@@ -112,8 +109,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ShopSettingsProvider>
-      <AppContent />
-    </ShopSettingsProvider>
+    <>
+      <Toaster position="top-center" />
+      <ShopSettingsProvider>
+        <AppContent />
+      </ShopSettingsProvider>
+    </>
   );
 }
