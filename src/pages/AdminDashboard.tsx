@@ -1,37 +1,32 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase, QueueItem } from "../lib/supabase";
-import { useAverageServiceTime, useQueueCount } from "../hooks/useQueue";
-import {
-  Play,
-  Trash2,
-  MoveVertical,
-  Plus,
-  Settings,
-  History,
-  LogOut,
-  Loader2,
-  UserPlus,
-  Scissors,
-  ChevronUp,
-  ChevronDown,
-  Users,
-  Check,
-  GripVertical,
-  Save,
-  X,
-  Power,
-  MessageCircle,
-  DoorOpen,
-} from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
 import {
   DragDropContext,
-  Droppable,
   Draggable,
+  Droppable,
   DropResult,
 } from "@hello-pangea/dnd";
+import {
+  Check,
+  GripVertical,
+  History,
+  Loader2,
+  LogOut,
+  MessageCircle,
+  Play,
+  Power,
+  Save,
+  Scissors,
+  Settings,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { useAverageServiceTime, useQueueCount } from "../hooks/useQueue";
+import { QueueItem, supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
@@ -63,7 +58,6 @@ export default function AdminDashboard() {
   const adminPin = import.meta.env.VITE_ADMIN_PIN || "1234";
 
   const fetchQueue = useCallback(async () => {
-    console.log("Fetching queue...");
     const { data, error } = await supabase
       .from("queue")
       .select("*, customer:customer_id(*)")
@@ -74,7 +68,6 @@ export default function AdminDashboard() {
       console.error("Error fetching queue:", error);
       toast.error("Falha ao buscar a fila");
     } else {
-      console.log("Queue fetched successfully, items:", data?.length);
       setQueue(data || []);
       // Only update local queue if we are not currently dragging/reordering
       setLocalQueue((prev) => {
@@ -117,33 +110,21 @@ export default function AdminDashboard() {
         .on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "queue" },
-          (payload: any) => {
-            console.log("Real-time queue update received:", payload);
+          () => {
             fetchQueue();
           },
         )
         .on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "shop_settings" },
-          (payload: any) => {
-            console.log("Real-time settings update received:", payload);
+          () => {
             fetchSettings();
           },
         )
-        .subscribe((status) => {
-          console.log("Admin channel status:", status);
-        });
-
-      // Polling fallback to ensure updates even if real-time fails
-      const pollInterval = setInterval(() => {
-        fetchQueue();
-        fetchSettings();
-      }, 5000);
+        .subscribe();
 
       return () => {
-        console.log("Removing admin channel and polling");
         supabase.removeChannel(channel);
-        clearInterval(pollInterval);
       };
     }
   }, [isAuthenticated, fetchQueue, fetchSettings]);
@@ -211,29 +192,29 @@ export default function AdminDashboard() {
           const peopleAhead = index;
 
           let sent = false;
-          if (peopleAhead === 0) {
-            sent = await webhookService.sendWebhook(
-              "NEXT",
-              item,
-              position,
-              peopleAhead,
-              avgServiceTime,
-              shopName,
-              webhookUrl,
-              trackingUrlBase,
-            );
-          } else if (peopleAhead === 2) {
-            sent = await webhookService.sendWebhook(
-              "NEAR",
-              item,
-              position,
-              peopleAhead,
-              avgServiceTime,
-              shopName,
-              webhookUrl,
-              trackingUrlBase,
-            );
-          }
+          // if (peopleAhead === 0) {
+          //   sent = await webhookService.sendWebhook(
+          //     "NEXT",
+          //     item,
+          //     position,
+          //     peopleAhead,
+          //     avgServiceTime,
+          //     shopName,
+          //     webhookUrl,
+          //     trackingUrlBase,
+          //   );
+          // } else if (peopleAhead === 2) {
+          //   sent = await webhookService.sendWebhook(
+          //     "NEAR",
+          //     item,
+          //     position,
+          //     peopleAhead,
+          //     avgServiceTime,
+          //     shopName,
+          //     webhookUrl,
+          //     trackingUrlBase,
+          //   );
+          // }
 
           if (sent) {
             await new Promise((resolve) => setTimeout(resolve, 500));
