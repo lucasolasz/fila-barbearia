@@ -152,46 +152,13 @@ export default function QueueStatus() {
   const waitTimeStr = hours > 0 ? `${hours}h${mins}m` : `${mins}m`;
 
   return (
-    <div className="flex min-h-screen flex-col items-center p-4 sm:p-8 bg-neutral-50 dark:bg-neutral-950">
+    <div className="flex flex-col items-center p-4 sm:p-8 bg-neutral-50 dark:bg-neutral-950">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md space-y-6"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div
-              className={`overflow-hidden transition-all ${
-                logoUrl
-                  ? "h-8 w-8 rounded-lg"
-                  : "rounded-lg bg-emerald-600 p-1.5"
-              }`}
-            >
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={shopName}
-                  className="h-full w-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <Scissors className="h-5 w-5 text-white" />
-              )}
-            </div>
-            <span className="font-bold text-neutral-900 dark:text-white">
-              {shopName}
-            </span>
-          </div>
-          <button
-            onClick={() => setShowLeaveConfirm(true)}
-            className="flex items-center text-sm font-medium text-red-600 hover:text-red-700 transition-colors dark:text-red-500 dark:hover:text-red-400"
-          >
-            <LogOut className="mr-1 h-4 w-4" />
-            Sair da Fila
-          </button>
-        </div>
-
-        <div className="relative p-[3px] overflow-hidden rounded-[2.25rem] shadow-2xl shadow-emerald-500/10">
+        <div className="relative p-1 overflow-hidden rounded-[2.25rem] shadow-2xl shadow-emerald-500/10">
           {/* Border Beam Animation */}
           <motion.div
             animate={{ rotate: 360 }}
@@ -204,30 +171,30 @@ export default function QueueStatus() {
           />
 
           <div className="relative z-10 overflow-hidden rounded-[2rem] bg-white dark:bg-neutral-900">
-            <div className="bg-neutral-900 p-8 text-center text-white relative dark:bg-black">
+            <div className="bg-neutral-900 p-4 text-center text-white relative dark:bg-black">
               <div className="absolute top-4 right-4 flex items-center space-x-2">
                 <motion.div
                   animate={{ opacity: [1, 0.5, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
-                  className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+                  className="h-[5px] w-[5px] rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
                 />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-red-500">
                   Ao Vivo
                 </span>
               </div>
               <p className="text-sm font-medium uppercase tracking-widest opacity-60">
                 Seu Código na Fila
               </p>
-              <h2 className="mt-2 text-6xl font-black tracking-tighter">
+              <h2 className="mt-2 text-3xl font-black tracking-tighter">
                 {queueItem?.code}
               </h2>
             </div>
             {}
-            <div className="p-8 space-y-8">
+            <div className="p-8 space-y-5">
               <div
                 className={`grid ${waitTime > 0 ? "grid-cols-2" : "grid-cols-1"} gap-4`}
               >
-                <div className="rounded-2xl bg-neutral-50 p-4 text-center border border-neutral-100 dark:bg-neutral-800 dark:border-neutral-700">
+                <div className="rounded-2xl bg-neutral-50 p-2 text-center border border-neutral-100 dark:bg-neutral-800 dark:border-neutral-700">
                   <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600 dark:text-emerald-500" />
                   <p className="text-xs font-semibold uppercase text-neutral-400 dark:text-neutral-500">
                     Posição
@@ -250,7 +217,7 @@ export default function QueueStatus() {
               </div>
 
               <AnimatePresence>
-                {position !== null && position <= 2 && (
+                {position !== null && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -260,10 +227,14 @@ export default function QueueStatus() {
                     <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-500" />
                     <div>
                       <p className="font-bold text-amber-50">
-                        Você é o proximo!
+                        {position <= 1 && "Você é o proximo!"}
+                        {position == 2 && "Sua vez está se aproximando!"}
                       </p>
                       <p className="text-sm opacity-90">
-                        Aguarde, o barbeiro irá chamá-lo em instantes.
+                        {position <= 1 &&
+                          "Aguarde, o barbeiro irá chamá-lo em instantes."}
+                        {position == 2 &&
+                          "Para não perder sua vez, já venha para a barbearia."}
                       </p>
                     </div>
                   </motion.div>
@@ -317,8 +288,17 @@ export default function QueueStatus() {
             </div>
           </div>
         </div>
+        <div className="mx-2">
+          <button
+            onClick={() => setShowLeaveConfirm(true)}
+            className="rounded-2xl w-full p-4 flex items-center justify-center text-sm  bg-red-700 font-medium hover:text-red-700 transition-colors dark:text-white dark:hover:text-red-400"
+          >
+            <LogOut className="mr-1 h-4 w-4" />
+            Sair da Fila
+          </button>
+        </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-neutral-100 dark:bg-neutral-900 dark:border-neutral-800">
+        <div className="rounded-2xl mx-2 bg-white p-6 shadow-sm border border-neutral-100 dark:bg-neutral-900 dark:border-neutral-800">
           <h3 className="mb-4 font-bold text-neutral-900 dark:text-white">
             Dicas da Fila
           </h3>
