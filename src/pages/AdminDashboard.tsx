@@ -68,11 +68,17 @@ export default function AdminDashboard() {
       console.error("Error fetching queue:", error);
       toast.error("Falha ao buscar a fila");
     } else {
-      setQueue(data || []);
+      const sortedData = [...(data || [])].sort((a, b) => {
+        if (a.status === "serving" && b.status !== "serving") return -1;
+        if (a.status !== "serving" && b.status === "serving") return 1;
+        return 0;
+      });
+
+      setQueue(sortedData);
       // Only update local queue if we are not currently dragging/reordering
       setLocalQueue((prev) => {
         if (isReorderingRef.current) return prev;
-        return data || [];
+        return sortedData;
       });
     }
     setLoading(false);
