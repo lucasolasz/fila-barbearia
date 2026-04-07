@@ -27,7 +27,7 @@ export function useShopSettingsHook() {
       const stored = localStorage.getItem("barber_theme");
       if (stored === "dark" || stored === "light") return stored;
     } catch (e) {}
-    return "light";
+    return "dark";
   };
 
   const getInitialShopName = () => {
@@ -67,7 +67,7 @@ export function useShopSettingsHook() {
         .limit(1)
         .maybeSingle();
       if (data) {
-        const fetchedTheme = data.theme || "light";
+        const fetchedTheme = data.theme || "dark";
         const fetchedShopName = data.shop_name || "BarberQueue";
         const fetchedLogoUrl = data.logo_url;
 
@@ -95,7 +95,7 @@ export function useShopSettingsHook() {
         { event: "*", table: "shop_settings" },
         (payload: any) => {
           if (payload.new) {
-            const fetchedTheme = payload.new.theme || "light";
+            const fetchedTheme = payload.new.theme || "dark";
             const fetchedShopName = payload.new.shop_name || "BarberQueue";
             const fetchedLogoUrl = payload.new.logo_url;
 
@@ -152,7 +152,7 @@ export function useShopSettings() {
   if (context === undefined) {
     // Return default if not within provider (useful for SSR or tests)
     return {
-      theme: "light" as "light" | "dark",
+      theme: "dark" as "light" | "dark",
       shopName: "BarberQueue",
       logoUrl: null as string | null,
       webhookUrl: null as string | null,

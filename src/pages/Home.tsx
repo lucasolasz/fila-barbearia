@@ -72,7 +72,7 @@ export default function Home() {
 
   if (statusLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white dark:bg-neutral-950">
+      <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
       </div>
     );

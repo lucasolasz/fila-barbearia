@@ -137,7 +137,7 @@ export default function QueueStatus() {
 
   if (loading) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center space-y-4 bg-white dark:bg-neutral-950">
+      <div className="flex min-h-screen flex-col items-center justify-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         <p className="text-neutral-500 animate-pulse font-medium dark:text-neutral-400">
           Atualizando seu status...
