@@ -1,80 +1,70 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase, supabaseUrl } from '../lib/supabase';
-import { useShopStatus } from '../hooks/useQueue';
-import { Scissors, Phone, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-import { motion } from 'motion/react';
-import toast from 'react-hot-toast';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase, supabaseUrl } from "../lib/supabase";
+import { useShopStatus } from "../hooks/useQueue";
+import {
+  Scissors,
+  Phone,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+import { motion } from "motion/react";
+import toast from "react-hot-toast";
 
-import { useShopSettings } from '../hooks/useShopSettings';
+import { useShopSettings } from "../hooks/useShopSettings";
 
 export default function Home() {
-  const [ddd, setDdd] = useState('21');
-  const [phone, setPhone] = useState('');
+  const [ddd, setDdd] = useState("21");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { shopName, logoUrl } = useShopSettings();
 
-  React.useEffect(() => {
-    // Simple test query to check connection
-    async function testConnection() {
-      try {
-        const { error } = await supabase.from('barbershop_schedule').select('count', { count: 'exact', head: true });
-        if (error) {
-          console.error('Supabase connection error:', error);
-          setConnectionError(error.message);
-        }
-      } catch (err: any) {
-        setConnectionError(err.message || 'Failed to connect to Supabase');
-      }
-    }
-    testConnection();
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (phone.length < 8) {
-      toast.error('Por favor, insira um número de telefone válido');
+      toast.error("Por favor, insira um número de telefone válido");
       return;
     }
 
     setLoading(true);
     const fullPhone = `${ddd}${phone}`;
-    
+
     try {
       // Check if already in queue
       const { data: customer } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('phone', fullPhone)
-        .order('created_at', { ascending: false })
+        .from("customers")
+        .select("*")
+        .eq("phone", fullPhone)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (customer) {
         const { data: queueEntry } = await supabase
-          .from('queue')
-          .select('*')
-          .eq('customer_id', customer.id)
-          .in('status', ['waiting', 'serving'])
+          .from("queue")
+          .select("*")
+          .eq("customer_id", customer.id)
+          .in("status", ["waiting", "serving"])
           .maybeSingle();
 
         if (queueEntry) {
-          toast.success('Você já está na fila!');
-          localStorage.setItem('barber_customer_id', customer.id);
-          localStorage.setItem('barber_queue_id', queueEntry.id);
-          navigate('/queue');
+          toast.success("Você já está na fila!");
+          localStorage.setItem("barber_customer_id", customer.id);
+          localStorage.setItem("barber_queue_id", queueEntry.id);
+          navigate("/queue");
           return;
         }
       }
 
       // If not in queue, go to join page
-      navigate('/join', { state: { phone: fullPhone } });
+      navigate("/join", { state: { phone: fullPhone } });
     } catch (error) {
       console.error(error);
-      toast.error('Algo deu errado. Por favor, tente novamente.');
+      toast.error("Algo deu errado. Por favor, tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -90,30 +80,36 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 bg-neutral-50 dark:bg-neutral-950">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md space-y-8 text-center"
       >
         <div className="flex flex-col items-center space-y-2">
-          <div className={`overflow-hidden transition-all duration-500 ${
-            logoUrl 
-            ? 'h-32 w-32 rounded-3xl' 
-            : 'rounded-2xl bg-emerald-600 p-4 shadow-lg shadow-emerald-200 dark:shadow-none'
-          }`}>
+          <div
+            className={`overflow-hidden transition-all duration-500 ${
+              logoUrl
+                ? "h-32 w-32 rounded-3xl"
+                : "rounded-2xl bg-emerald-600 p-4 shadow-lg shadow-emerald-200 dark:shadow-none"
+            }`}
+          >
             {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={shopName} 
-                className="h-full w-full object-contain" 
-                referrerPolicy="no-referrer" 
+              <img
+                src={logoUrl}
+                alt={shopName}
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <Scissors className="h-10 w-10 text-white" />
             )}
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-white">{shopName}</h1>
-          <p className="text-neutral-500 italic dark:text-neutral-400">A maneira mais inteligente de esperar pelo seu corte.</p>
+          <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            {shopName}
+          </h1>
+          <p className="text-neutral-500 italic dark:text-neutral-400">
+            A maneira mais inteligente de esperar pelo seu corte.
+          </p>
         </div>
 
         {connectionError && (
@@ -126,11 +122,23 @@ export default function Home() {
               Não foi possível buscar dados do Supabase. Verifique se:
             </p>
             <ul className="mt-2 list-disc pl-5 text-xs space-y-1 opacity-80">
-              <li>As chaves no painel <strong>Secrets</strong> estão corretas.</li>
-              <li>O RLS (Row Level Security) está desativado ou com políticas públicas.</li>
-              <li>A URL do projeto está correta: <code className="bg-red-100 px-1 rounded dark:bg-red-900/40">{supabaseUrl}</code></li>
+              <li>
+                As chaves no painel <strong>Secrets</strong> estão corretas.
+              </li>
+              <li>
+                O RLS (Row Level Security) está desativado ou com políticas
+                públicas.
+              </li>
+              <li>
+                A URL do projeto está correta:{" "}
+                <code className="bg-red-100 px-1 rounded dark:bg-red-900/40">
+                  {supabaseUrl}
+                </code>
+              </li>
             </ul>
-            <p className="mt-3 text-[10px] font-mono break-all opacity-60">Erro: {connectionError}</p>
+            <p className="mt-3 text-[10px] font-mono break-all opacity-60">
+              Erro: {connectionError}
+            </p>
           </div>
         )}
 
@@ -141,7 +149,6 @@ export default function Home() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             <div className="flex space-x-2">
               <div className="relative w-24 shrink-0">
                 <select
@@ -150,14 +157,77 @@ export default function Home() {
                   className="h-14 w-full appearance-none rounded-2xl border border-neutral-200 bg-white px-4 text-lg shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none dark:bg-neutral-900 dark:border-neutral-800 dark:text-white dark:focus:border-emerald-500 dark:focus:ring-emerald-900/30"
                 >
                   {[
-                    '11', '12', '13', '14', '15', '16', '17', '18', '19',
-                    '21', '22', '24', '27', '28', '31', '32', '33', '34', '35', '37', '38',
-                    '41', '42', '43', '44', '45', '46', '47', '48', '49',
-                    '51', '53', '54', '55', '61', '62', '63', '64', '65', '66', '67', '68', '69',
-                    '71', '73', '74', '75', '77', '79', '81', '82', '83', '84', '85', '86', '87', '88', '89',
-                    '91', '92', '93', '94', '95', '96', '97', '98', '99'
-                  ].map(code => (
-                    <option key={code} value={code}>{code}</option>
+                    "11",
+                    "12",
+                    "13",
+                    "14",
+                    "15",
+                    "16",
+                    "17",
+                    "18",
+                    "19",
+                    "21",
+                    "22",
+                    "24",
+                    "27",
+                    "28",
+                    "31",
+                    "32",
+                    "33",
+                    "34",
+                    "35",
+                    "37",
+                    "38",
+                    "41",
+                    "42",
+                    "43",
+                    "44",
+                    "45",
+                    "46",
+                    "47",
+                    "48",
+                    "49",
+                    "51",
+                    "53",
+                    "54",
+                    "55",
+                    "61",
+                    "62",
+                    "63",
+                    "64",
+                    "65",
+                    "66",
+                    "67",
+                    "68",
+                    "69",
+                    "71",
+                    "73",
+                    "74",
+                    "75",
+                    "77",
+                    "79",
+                    "81",
+                    "82",
+                    "83",
+                    "84",
+                    "85",
+                    "86",
+                    "87",
+                    "88",
+                    "89",
+                    "91",
+                    "92",
+                    "93",
+                    "94",
+                    "95",
+                    "96",
+                    "97",
+                    "98",
+                    "99",
+                  ].map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
@@ -175,7 +245,7 @@ export default function Home() {
                   placeholder="Número (ex: 999999999)"
                   value={phone}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
+                    const val = e.target.value.replace(/\D/g, "");
                     if (val.length <= 9) setPhone(val);
                   }}
                   className="h-14 w-full rounded-2xl border border-neutral-200 bg-white px-12 text-lg shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none dark:bg-neutral-900 dark:border-neutral-800 dark:text-white dark:focus:border-emerald-500 dark:focus:ring-emerald-900/30"
