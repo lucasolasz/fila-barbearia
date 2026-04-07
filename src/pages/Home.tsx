@@ -345,11 +345,16 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 items-center justify-center rounded-xl bg-amber-50 p-4 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-900/30">
+                  <div className="flex gap-3 items-center text-center justify-center rounded-xl bg-amber-50 p-4 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-900/30">
                     <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-500" />
-                    <p className="text-sm text-amber-800 dark:text-amber-400 font-medium">
-                      Atenção: Você ainda não está na fila. Confirme abaixo.
-                    </p>
+                    <div className="flex flex-col justify-center text-center">
+                      <p className="text-sm text-amber-800 dark:text-amber-400 font-medium">
+                        Atenção: Você ainda não está na fila.
+                      </p>
+                      <p className="text-sm text-amber-800 dark:text-amber-400 font-medium">
+                        Confirme abaixo.
+                      </p>
+                    </div>
                   </div>
                 </motion.div>
               )}
