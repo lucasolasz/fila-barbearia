@@ -4,6 +4,7 @@ import React, {
   ReactNode,
   useState,
   useEffect,
+  useLayoutEffect,
 } from "react";
 import { supabase } from "../lib/supabase";
 
@@ -21,15 +22,40 @@ const ShopSettingsContext = createContext<ShopSettingsContextType | undefined>(
 );
 
 export function useShopSettingsHook() {
+  const getInitialTheme = () => {
+    try {
+      const stored = localStorage.getItem("barber_theme");
+      if (stored === "dark" || stored === "light") return stored;
+    } catch (e) {}
+    return "light";
+  };
+
+  const getInitialShopName = () => {
+    try {
+      const stored = localStorage.getItem("barber_shop_name");
+      if (stored) return stored;
+    } catch (e) {}
+    return "BarberQueue";
+  };
+
+  const getInitialLogoUrl = () => {
+    try {
+      const stored = localStorage.getItem("barber_logo_url");
+      if (stored) return stored;
+    } catch (e) {}
+    return null;
+  };
+
   const [settings, setSettings] = useState({
-    theme: "light" as "light" | "dark",
-    shopName: "BarberQueue",
-    logoUrl: null as string | null,
+    theme: getInitialTheme() as "light" | "dark",
+    shopName: getInitialShopName(),
+    logoUrl: getInitialLogoUrl(),
     webhookUrl: null as string | null,
     trackingUrlBase: null as string | null,
   });
 
   const setTheme = (theme: "light" | "dark") => {
+    localStorage.setItem("barber_theme", theme);
     setSettings((prev) => ({ ...prev, theme }));
   };
 
@@ -41,10 +67,19 @@ export function useShopSettingsHook() {
         .limit(1)
         .maybeSingle();
       if (data) {
+        const fetchedTheme = data.theme || "light";
+        const fetchedShopName = data.shop_name || "BarberQueue";
+        const fetchedLogoUrl = data.logo_url;
+
+        localStorage.setItem("barber_theme", fetchedTheme);
+        localStorage.setItem("barber_shop_name", fetchedShopName);
+        if (fetchedLogoUrl)
+          localStorage.setItem("barber_logo_url", fetchedLogoUrl);
+
         setSettings({
-          theme: data.theme || "light",
-          shopName: data.shop_name || "BarberQueue",
-          logoUrl: data.logo_url,
+          theme: fetchedTheme,
+          shopName: fetchedShopName,
+          logoUrl: fetchedLogoUrl,
           webhookUrl: data.webhook_url,
           trackingUrlBase: data.tracking_url_base,
         });
@@ -60,10 +95,19 @@ export function useShopSettingsHook() {
         { event: "*", table: "shop_settings" },
         (payload: any) => {
           if (payload.new) {
+            const fetchedTheme = payload.new.theme || "light";
+            const fetchedShopName = payload.new.shop_name || "BarberQueue";
+            const fetchedLogoUrl = payload.new.logo_url;
+
+            localStorage.setItem("barber_theme", fetchedTheme);
+            localStorage.setItem("barber_shop_name", fetchedShopName);
+            if (fetchedLogoUrl)
+              localStorage.setItem("barber_logo_url", fetchedLogoUrl);
+
             setSettings({
-              theme: payload.new.theme || "light",
-              shopName: payload.new.shop_name || "BarberQueue",
-              logoUrl: payload.new.logo_url,
+              theme: fetchedTheme,
+              shopName: fetchedShopName,
+              logoUrl: fetchedLogoUrl,
               webhookUrl: payload.new.webhook_url,
               trackingUrlBase: payload.new.tracking_url_base,
             });
@@ -82,7 +126,7 @@ export function useShopSettingsHook() {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (settings.theme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
