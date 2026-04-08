@@ -186,6 +186,7 @@ export default function Join() {
       localStorage.setItem("barber_queue_id", queueEntry.id);
       localStorage.setItem("barber_queue_code", queueEntry.code);
       localStorage.setItem("barber_customer_phone", phone);
+      localStorage.setItem("barber_customer_name", name);
 
       // Send webhooks
       const peopleAhead = queueCount; // queueCount is the number of people BEFORE this user joined

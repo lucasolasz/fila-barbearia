@@ -24,9 +24,19 @@ import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
 
 export default function Home() {
-  const [ddd, setDdd] = useState("21");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [ddd, setDdd] = useState(() => {
+    const savedPhone = localStorage.getItem("barber_customer_phone");
+    return savedPhone && savedPhone.length > 2
+      ? savedPhone.substring(0, 2)
+      : "21";
+  });
+  const [phone, setPhone] = useState(() => {
+    const savedPhone = localStorage.getItem("barber_customer_phone");
+    return savedPhone && savedPhone.length > 2 ? savedPhone.substring(2) : "";
+  });
+  const [name, setName] = useState(() => {
+    return localStorage.getItem("barber_customer_name") || "";
+  });
   const [loading, setLoading] = useState(false);
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
@@ -76,6 +86,7 @@ export default function Home() {
           localStorage.setItem("barber_queue_id", queueEntry.id);
           localStorage.setItem("barber_queue_code", queueEntry.code);
           localStorage.setItem("barber_customer_phone", fullPhone);
+          localStorage.setItem("barber_customer_name", name);
           navigate("/queue");
           return;
         }
@@ -153,6 +164,7 @@ export default function Home() {
       localStorage.setItem("barber_queue_id", queueEntry.id);
       localStorage.setItem("barber_queue_code", queueEntry.code);
       localStorage.setItem("barber_customer_phone", fullPhone);
+      localStorage.setItem("barber_customer_name", name);
 
       webhookService.sendWebhook(
         "JOINED",

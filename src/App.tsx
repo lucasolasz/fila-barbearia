@@ -37,6 +37,12 @@ function SessionManager({ children }: { children: React.ReactNode }) {
         .eq("id", queueId)
         .single();
 
+      // Se houver um erro, verifica se é apenas uma falha de rede temporária (ex: volta do background).
+      // O Supabase retorna PGRST116 quando o registro não é encontrado de fato.
+      if (error && error.code !== "PGRST116") {
+        return;
+      }
+
       if (error || !data) {
         // Se o registro não existir mais, limpa a sessão
         localStorage.removeItem("barber_queue_id");

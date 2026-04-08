@@ -39,6 +39,11 @@ export default function QueueStatus() {
         .eq("id", queueId)
         .single();
 
+      // Ignora erros temporários de rede (ex: quando o app volta do background sem internet)
+      if (error && error.code !== "PGRST116") {
+        return;
+      }
+
       if (error || !data) {
         console.error("Error fetching queue status:", error);
         toast.error("Não foi possível encontrar seu lugar na fila.");

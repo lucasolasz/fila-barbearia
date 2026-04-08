@@ -27,6 +27,11 @@ export default function InService() {
         .eq("id", queueId)
         .single();
 
+      // Ignora erros temporários de rede (ex: quando o app volta do background)
+      if (error && error.code !== "PGRST116") {
+        return;
+      }
+
       if (error || !data) {
         clearSession();
         return;
