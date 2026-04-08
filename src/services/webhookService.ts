@@ -1,4 +1,5 @@
 import { QueueItem } from "../lib/supabase";
+import { calculateEstimatedServiceTime } from "../hooks/useQueue";
 
 export type WebhookEvent = "JOINED" | "NEAR" | "NEXT";
 
@@ -73,7 +74,7 @@ class WebhookService {
         position: 1,
         peopleAhead: 0,
         etaMinutes: 0,
-        estimatedWait: "0 min",
+        estimatedWait: "Agora",
       },
       establishment: {
         name: "Barbearia Teste",
@@ -163,12 +164,11 @@ class WebhookService {
         phone = "55" + phone;
       }
 
-      const tempoEstimado = peopleAhead * baseTime;
-      const margem = Math.floor(tempoEstimado * 0.2); // 20%
-      let minimo = Math.max(tempoEstimado - margem, 5);
-      let maximo = tempoEstimado + margem;
-      const estimatedWait =
-        peopleAhead <= 0 ? "0 min" : `${minimo} - ${maximo} min`;
+      const tempoEstimado = peopleAhead * baseTime; // Mantido para caso você ainda queira os minutos no n8n
+      const estimatedWait = calculateEstimatedServiceTime(
+        peopleAhead,
+        baseTime,
+      );
 
       const payload: WebhookPayload = {
         type: "QUEUE_UPDATE",
