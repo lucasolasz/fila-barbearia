@@ -90,7 +90,7 @@ export default function QueueStatus() {
       const { count } = await supabase
         .from("queue")
         .select("*", { count: "exact", head: true })
-        .eq("status", "waiting")
+        .in("status", ["waiting", "serving"])
         .lt("position", currentPosition || 999999);
 
       // Position is count + 1 if we are waiting
@@ -217,7 +217,7 @@ export default function QueueStatus() {
               </div>
 
               <AnimatePresence>
-                {position !== null && position <= 2 && (
+                {position !== null && position <= 3 && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -227,13 +227,13 @@ export default function QueueStatus() {
                     <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-500" />
                     <div>
                       <p className="font-bold">
-                        {position <= 1 && "Você é o proximo!"}
-                        {position == 2 && "Sua vez está se aproximando!"}
+                        {position <= 2 && "Você é o proximo!"}
+                        {position == 3 && "Sua vez está se aproximando!"}
                       </p>
                       <p className="text-sm opacity-90">
-                        {position <= 1 &&
+                        {position <= 2 &&
                           "Aguarde, o barbeiro irá chamá-lo em instantes."}
-                        {position == 2 &&
+                        {position == 3 &&
                           "Para não perder sua vez, já venha para a barbearia."}
                       </p>
                     </div>
@@ -262,13 +262,13 @@ export default function QueueStatus() {
                   <span
                     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize
                                 ${
-                                  peopleAhead === 0
+                                  peopleAhead <= 1
                                     ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                                     : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
                                 }`}
                   >
                     {queueItem?.status === "waiting"
-                      ? peopleAhead === 0
+                      ? peopleAhead <= 1
                         ? "Chamado em breve"
                         : "Aguardando"
                       : queueItem?.status === "serving"

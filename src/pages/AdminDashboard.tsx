@@ -188,6 +188,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (isAuthenticated && queue.length > 0) {
       const processWebhooks = async () => {
+        const servingCount = queue.filter(
+          (item) => item.status === "serving",
+        ).length;
         const waitingItems = queue
           .filter((item) => item.status === "waiting")
           .sort((a, b) => a.position - b.position);
@@ -195,11 +198,11 @@ export default function AdminDashboard() {
         const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
         for (let index = 0; index < waitingItems.length; index++) {
           const item = waitingItems[index];
-          const position = index + 1;
-          const peopleAhead = index;
+          const position = index + 1 + servingCount;
+          const peopleAhead = position - 1;
 
           let sent = false;
-          if (peopleAhead === 0) {
+          if (peopleAhead <= 1) {
             sent = await webhookService.sendWebhook(
               "NEXT",
               item,
@@ -566,7 +569,7 @@ export default function AdminDashboard() {
               Na Fila
             </p>
             <p className="text-2xl font-black text-neutral-900 dark:text-white">
-              {queue.filter((i) => i.status === "waiting").length}
+              {queue.length}
             </p>
           </div>
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-neutral-100 dark:bg-neutral-900 dark:border-neutral-800">

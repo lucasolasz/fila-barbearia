@@ -140,7 +140,7 @@ export function useQueueCount() {
       const { count: queueCount, error } = await supabase
         .from("queue")
         .select("*", { count: "exact", head: true })
-        .eq("status", "waiting");
+        .in("status", ["waiting", "serving"]);
 
       if (!error && queueCount !== null) {
         setCount(queueCount);

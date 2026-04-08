@@ -265,7 +265,7 @@ export default function Join() {
               Horário Estimado
             </p>
             <p className="text-2xl font-black text-neutral-900 dark:text-white">
-              {calculateEstimatedServiceTime(queueCount + 1, baseQueueTime)}
+              {calculateEstimatedServiceTime(queueCount, baseQueueTime)}
             </p>
           </div>
         </div>
