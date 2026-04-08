@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import {
   useQueueCount,
   useShopStatus,
-  calculateEstimatedWaitTime,
+  calculateEstimatedServiceTime,
 } from "../hooks/useQueue";
 import { supabase } from "../lib/supabase";
 
@@ -317,17 +317,17 @@ export default function Home() {
                   <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-500">
                     Sua posição estimada
                   </p>
-                  <p className="text-2xl font-black text-neutral-900 dark:text-white">
+                  <p className="text-xl font-black text-neutral-900 dark:text-white mt-2">
                     {queueCount + 1}º
                   </p>
                 </div>
                 <div className="rounded-xl bg-white p-4 text-center border border-neutral-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-800">
                   <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
                   <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-500">
-                    Tempo estimado
+                    Horário estimado
                   </p>
-                  <p className="text-2xl font-black text-neutral-900 dark:text-white">
-                    {calculateEstimatedWaitTime(queueCount, baseQueueTime)}
+                  <p className="text-xl font-black text-neutral-900 dark:text-white mt-2">
+                    {calculateEstimatedServiceTime(queueCount, baseQueueTime)}
                   </p>
                 </div>
               </div>

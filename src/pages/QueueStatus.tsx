@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import { calculateEstimatedWaitTime } from "../hooks/useQueue";
+import { calculateEstimatedServiceTime } from "../hooks/useQueue";
 import { QueueItem, supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
@@ -146,7 +146,10 @@ export default function QueueStatus() {
   }
 
   const peopleAhead = position ? position - 1 : 0;
-  const waitTimeStr = calculateEstimatedWaitTime(peopleAhead, baseQueueTime);
+  const estimatedTimeStr = calculateEstimatedServiceTime(
+    peopleAhead,
+    baseQueueTime,
+  );
 
   return (
     <div className="flex flex-col items-center p-4 sm:p-8 bg-neutral-50 dark:bg-neutral-950">
@@ -196,7 +199,7 @@ export default function QueueStatus() {
                   <p className="text-xs font-semibold uppercase text-neutral-400 dark:text-neutral-500">
                     Posição
                   </p>
-                  <p className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  <p className="text-xl font-bold text-neutral-900 dark:text-white mt-2">
                     {position}
                   </p>
                 </div>
@@ -204,10 +207,10 @@ export default function QueueStatus() {
                   <div className="rounded-2xl bg-neutral-50 p-4 text-center border border-neutral-100 dark:bg-neutral-800 dark:border-neutral-700">
                     <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600 dark:text-emerald-500" />
                     <p className="text-xs font-semibold uppercase text-neutral-400 dark:text-neutral-500">
-                      Tempo de Espera
+                      Horário Estimado
                     </p>
-                    <p className="text-2xl font-bold text-neutral-900 dark:text-white">
-                      {waitTimeStr}
+                    <p className="text-xl font-bold text-neutral-900 dark:text-white mt-2">
+                      {estimatedTimeStr}
                     </p>
                   </div>
                 )}

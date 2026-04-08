@@ -10,7 +10,10 @@ import { motion } from "motion/react";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueueCount, calculateEstimatedWaitTime } from "../hooks/useQueue";
+import {
+  useQueueCount,
+  calculateEstimatedServiceTime,
+} from "../hooks/useQueue";
 import { supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
@@ -259,10 +262,10 @@ export default function Join() {
           <div className="rounded-xl bg-white p-4 text-center border border-neutral-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-800">
             <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
             <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-500">
-              Espera Estimada
+              Horário Estimado
             </p>
             <p className="text-2xl font-black text-neutral-900 dark:text-white">
-              {calculateEstimatedWaitTime(queueCount + 1, baseQueueTime)}
+              {calculateEstimatedServiceTime(queueCount + 1, baseQueueTime)}
             </p>
           </div>
         </div>

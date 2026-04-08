@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase, Schedule, ScheduleException } from "../lib/supabase";
-import { format, getDay, parseISO } from "date-fns";
+import { format, getDay, parseISO, addMinutes } from "date-fns";
 
 export function useShopStatus() {
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
@@ -112,6 +112,24 @@ export function useShopStatus() {
   }, []);
 
   return { isOpen, message, loading };
+}
+
+export function calculateEstimatedServiceTime(
+  posicaoNaFila: number,
+  baseQueueTime: number | null,
+): string {
+  if (posicaoNaFila <= 0) return "Agora";
+  const tempoBase = baseQueueTime == null ? 30 : baseQueueTime;
+  const tempoEstimado = posicaoNaFila * tempoBase;
+  const margem = Math.floor(tempoEstimado * 0.2);
+  let minimo = Math.max(tempoEstimado - margem, 5);
+  let maximo = tempoEstimado + margem;
+
+  const now = new Date();
+  const minTime = addMinutes(now, minimo);
+  const maxTime = addMinutes(now, maximo);
+
+  return `${format(minTime, "HH:mm")} - ${format(maxTime, "HH:mm")}`;
 }
 
 export function useQueueCount() {
