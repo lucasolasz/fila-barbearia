@@ -114,22 +114,70 @@ export function useShopStatus() {
   return { isOpen, message, loading };
 }
 
-export function calculateEstimatedServiceTime(
-  posicaoNaFila: number,
-  baseQueueTime: number | null,
-): string {
-  if (posicaoNaFila <= 0) return "Agora";
-  const tempoBase = baseQueueTime == null ? 30 : baseQueueTime;
-  const tempoEstimado = posicaoNaFila * tempoBase;
-  const margem = Math.floor(tempoEstimado * 0.2);
-  let minimo = Math.max(tempoEstimado - margem, 5);
-  let maximo = tempoEstimado + margem;
+function roundDateUpTo15(date: Date): Date {
+  const d = new Date(date);
+
+  const minutes = d.getMinutes();
+  const rounded = Math.ceil(minutes / 15) * 15;
+
+  if (rounded === 60) {
+    d.setHours(d.getHours() + 1);
+    d.setMinutes(0);
+  } else {
+    d.setMinutes(rounded);
+  }
+
+  d.setSeconds(0);
+  d.setMilliseconds(0);
+
+  return d;
+}
+
+function roundDateDownTo15(date: Date): Date {
+  const d = new Date(date);
+
+  const minutes = d.getMinutes();
+  const rounded = Math.floor(minutes / 15) * 15;
+
+  d.setMinutes(rounded);
+  d.setSeconds(0);
+  d.setMilliseconds(0);
+
+  return d;
+}
+
+export function calculateEstimatedServiceTime(posicaoNaFila: number): string {
+  if (posicaoNaFila <= 1) return "Agora";
+
+  // ⏱ intervalo real do serviço
+  const tempoMin = 25;
+  const tempoMax = 40;
+
+  const pessoasNaFrente = posicaoNaFila - 1;
+
+  const minimo = pessoasNaFrente * tempoMin;
+  const maximo = pessoasNaFrente * tempoMax;
 
   const now = new Date();
-  const minTime = addMinutes(now, minimo);
-  const maxTime = addMinutes(now, maximo);
 
-  return `${format(minTime, "HH:mm")} - ${format(maxTime, "HH:mm")}`;
+  let minTime = addMinutes(now, minimo);
+  let maxTime = addMinutes(now, maximo);
+
+  // 👉 arredondamento correto
+  minTime = roundDateUpTo15(minTime);
+  maxTime = roundDateDownTo15(maxTime);
+
+  // 👉 proteção contra inversão (bug 22:00 e 21:45)
+  if (maxTime < minTime) {
+    maxTime = new Date(minTime.getTime() + 15 * 60000);
+  }
+
+  // 👉 evita intervalo igual (ex: 10:30 e 10:30)
+  if (maxTime.getTime() === minTime.getTime()) {
+    maxTime = new Date(minTime.getTime() + 15 * 60000);
+  }
+
+  return `${format(minTime, "HH:mm")} e ${format(maxTime, "HH:mm")}`;
 }
 
 export function useQueueCount() {

@@ -146,10 +146,7 @@ export default function QueueStatus() {
   }
 
   const peopleAhead = position ? position - 1 : 0;
-  const estimatedTimeStr = calculateEstimatedServiceTime(
-    peopleAhead,
-    baseQueueTime,
-  );
+  const estimatedTimeStr = calculateEstimatedServiceTime(peopleAhead + 1);
 
   return (
     <div className="flex flex-col items-center p-4 sm:p-8 bg-neutral-50 dark:bg-neutral-950">

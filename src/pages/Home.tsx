@@ -327,7 +327,7 @@ export default function Home() {
                     Horário estimado
                   </p>
                   <p className="text-xl font-black text-neutral-900 dark:text-white mt-2">
-                    {calculateEstimatedServiceTime(queueCount, baseQueueTime)}
+                    {calculateEstimatedServiceTime(queueCount + 1)}
                   </p>
                 </div>
               </div>
