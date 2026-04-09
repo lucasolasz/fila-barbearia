@@ -201,19 +201,21 @@ export default function AdminDashboard() {
           const position = index + 1 + servingCount;
           const peopleAhead = position - 1;
 
-          // Verifica quanto tempo o cliente está na fila (em milissegundos)
-          const timeInQueue = Date.now() - new Date(item.created_at).getTime();
-          // Se o cliente acabou de entrar (menos de 1 minuto), não envia NEXT ou NEAR
-          // pois ele acabou de receber a notificação de JOINED
-          if (timeInQueue < 60000) {
-            console.log("Entrou ha menos de 1 minuto");
-            continue;
-          }
-
-          console.log("pessoas a frente " + peopleAhead);
+          // // Verifica quanto tempo o cliente está na fila (em milissegundos)
+          // const timeInQueue = Date.now() - new Date(item.created_at).getTime();
+          // // Se o cliente acabou de entrar (menos de 1 minuto), não envia NEXT ou NEAR
+          // // pois ele acabou de receber a notificação de JOINED
+          // if (timeInQueue < 60000) {
+          //   console.log("Entrou ha menos de 1 minuto");
+          //   continue;
+          // }
 
           let sent = false;
-          if (peopleAhead === 0) {
+
+          const notifiedNext = (item as any).notified_next;
+          const notifiedNear = (item as any).notified_near;
+
+          if (peopleAhead === 0 && !notifiedNext) {
             sent = await webhookService.sendWebhook(
               "NEXT",
               item,
@@ -224,7 +226,13 @@ export default function AdminDashboard() {
               webhookUrl,
               trackingUrlBase,
             );
-          } else if (peopleAhead === 2) {
+            if (sent) {
+              await supabase
+                .from("queue")
+                .update({ notified_next: true })
+                .eq("id", item.id);
+            }
+          } else if (peopleAhead === 2 && !notifiedNear) {
             sent = await webhookService.sendWebhook(
               "NEAR",
               item,
@@ -235,6 +243,12 @@ export default function AdminDashboard() {
               webhookUrl,
               trackingUrlBase,
             );
+            if (sent) {
+              await supabase
+                .from("queue")
+                .update({ notified_near: true })
+                .eq("id", item.id);
+            }
           }
 
           if (sent) {

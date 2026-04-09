@@ -23,39 +23,6 @@ export interface WebhookPayload {
 }
 
 class WebhookService {
-  private getSentEvents(): Record<string, WebhookEvent[]> {
-    try {
-      const stored = localStorage.getItem("webhook_sent_events");
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  private markEventAsSent(queueId: string, event: WebhookEvent) {
-    const sentEvents = this.getSentEvents();
-    if (!sentEvents[queueId]) {
-      sentEvents[queueId] = [];
-    }
-    if (!sentEvents[queueId].includes(event)) {
-      sentEvents[queueId].push(event);
-      localStorage.setItem("webhook_sent_events", JSON.stringify(sentEvents));
-    }
-  }
-
-  private unmarkEventAsSent(queueId: string, event: WebhookEvent) {
-    const sentEvents = this.getSentEvents();
-    if (sentEvents[queueId]) {
-      sentEvents[queueId] = sentEvents[queueId].filter((e) => e !== event);
-      localStorage.setItem("webhook_sent_events", JSON.stringify(sentEvents));
-    }
-  }
-
-  private hasEventBeenSent(queueId: string, event: WebhookEvent): boolean {
-    const sentEvents = this.getSentEvents();
-    return sentEvents[queueId]?.includes(event) || false;
-  }
-
   public async testWebhook(
     webhookUrl: string,
     trackingUrlBase: string,
@@ -152,12 +119,6 @@ class WebhookService {
   ): Promise<boolean> {
     if (!webhookUrl) return false;
 
-    // We still use localStorage to prevent accidental double-clicks on the same device
-    if (this.hasEventBeenSent(item.id, event)) {
-      return false;
-    }
-    this.markEventAsSent(item.id, event);
-
     try {
       let phone = item.customer?.phone?.replace(/\D/g, "") || "";
       if (phone && !phone.startsWith("55") && phone.length <= 11) {
@@ -165,10 +126,7 @@ class WebhookService {
       }
 
       const tempoEstimado = peopleAhead * baseTime; // Mantido para caso você ainda queira os minutos no n8n
-      const estimatedWait = calculateEstimatedServiceTime(
-        peopleAhead,
-        baseTime,
-      );
+      const estimatedWait = calculateEstimatedServiceTime(peopleAhead);
 
       const payload: WebhookPayload = {
         type: "QUEUE_UPDATE",
@@ -214,7 +172,6 @@ class WebhookService {
           console.error(
             `Failed to send webhook for ${item.id} - ${event}: ${response.statusText}`,
           );
-          this.unmarkEventAsSent(item.id, event);
           return false;
         }
       } catch (fetchError) {
@@ -240,7 +197,6 @@ class WebhookService {
             `Fallback webhook also failed for ${item.id} - ${event}:`,
             fallbackError,
           );
-          this.unmarkEventAsSent(item.id, event);
           return false;
         }
       }
@@ -249,7 +205,6 @@ class WebhookService {
         `Error processing webhook for ${item.id} - ${event}:`,
         error,
       );
-      this.unmarkEventAsSent(item.id, event);
       return false;
     }
   }
