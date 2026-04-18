@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   const isReorderingRef = useRef(false);
   const notifiedNextSet = useRef<Set<string>>(new Set());
   const notifiedNearSet = useRef<Set<string>>(new Set());
+  const notifiedPositionMap = useRef<Map<string, number>>(new Map());
 
   const setIsReordering = (value: boolean) => {
     isReorderingRef.current = value;
@@ -182,7 +183,7 @@ export default function AdminDashboard() {
         toast.dismiss(id);
       }, 1800);
     } catch (error) {
-      console.error(error);
+      //console.error(error);
       toast.error("Falha ao atualizar status da fila");
     }
   };
@@ -214,8 +215,38 @@ export default function AdminDashboard() {
 
           let sent = false;
 
-          const notifiedNext = (item as any).notified_next;
-          const notifiedNear = (item as any).notified_near;
+          let notifiedNext = (item as any).notified_next;
+          let notifiedNear = (item as any).notified_near;
+
+          const lastPos = notifiedPositionMap.current.get(item.id);
+          const positionChanged = lastPos !== undefined && lastPos !== position;
+
+          // Atualiza o mapa de posições imediatamente de forma síncrona para evitar
+          // que as próximas execuções concorrentes (causadas por várias atualizações rápidas)
+          // achem que a posição mudou de novo.
+          if (lastPos !== position) {
+            notifiedPositionMap.current.set(item.id, position);
+          }
+
+          // Se a pessoa for movida para trás na fila, resetamos as notificações para que ela seja avisada novamente
+          if (peopleAhead > 0 && notifiedNext) {
+            notifiedNext = false;
+            notifiedNextSet.current.delete(item.id);
+            supabase
+              .from("queue")
+              .update({ notified_next: false })
+              .eq("id", item.id)
+              .then();
+          }
+          if (peopleAhead > 2 && notifiedNear) {
+            notifiedNear = false;
+            notifiedNearSet.current.delete(item.id);
+            supabase
+              .from("queue")
+              .update({ notified_near: false })
+              .eq("id", item.id)
+              .then();
+          }
 
           if (
             peopleAhead === 0 &&
@@ -246,7 +277,8 @@ export default function AdminDashboard() {
               notifiedNextSet.current.delete(item.id);
             }
           } else if (
-            peopleAhead === 2 &&
+            peopleAhead > 0 &&
+            peopleAhead <= 2 &&
             !notifiedNear &&
             !notifiedNearSet.current.has(item.id)
           ) {
@@ -272,6 +304,22 @@ export default function AdminDashboard() {
                 .eq("id", item.id);
             } else {
               notifiedNearSet.current.delete(item.id);
+            }
+          } else if (positionChanged) {
+            // Envia um evento de UPDATE caso a posição mude (ex: 4 para 3, ou 2 para 1)
+            if (item.customer?.phone?.startsWith("manual_")) {
+              sent = true;
+            } else {
+              sent = await webhookService.sendWebhook(
+                "UPDATE",
+                item,
+                position,
+                peopleAhead,
+                currentBaseTime,
+                shopName,
+                webhookUrl,
+                trackingUrlBase,
+              );
             }
           }
 
@@ -338,7 +386,7 @@ export default function AdminDashboard() {
       toast.success(`Iniciou atendimento para ${item.customer?.name}`);
       await fetchQueue();
     } catch (error) {
-      console.error(error);
+      //console.error(error);
       toast.error("Falha ao iniciar atendimento");
     } finally {
       setProcessingId(null);
@@ -372,7 +420,7 @@ export default function AdminDashboard() {
       toast.success(`Atendimento de ${item.customer?.name} finalizado!`);
       await fetchQueue();
     } catch (error) {
-      console.error(error);
+      //console.error(error);
       toast.error("Falha ao finalizar atendimento");
     } finally {
       setProcessingId(null);
@@ -392,7 +440,7 @@ export default function AdminDashboard() {
       setItemToRemove(null);
       await fetchQueue();
     } catch (error) {
-      console.error(error);
+      //console.error(error);
       toast.error("Falha ao remover cliente");
     } finally {
       setProcessingId(null);
@@ -458,7 +506,7 @@ export default function AdminDashboard() {
       setIsReordering(false);
       fetchQueue();
     } catch (error) {
-      console.error(error);
+      //console.error(error);
       toast.error("Falha ao salvar a nova ordem");
       setLoading(false);
     }
