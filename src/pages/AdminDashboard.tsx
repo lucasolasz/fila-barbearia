@@ -727,7 +727,7 @@ export default function AdminDashboard() {
                                   <button
                                     onClick={() => handleCompleteService(item)}
                                     disabled={!!processingId}
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-none"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50"
                                     title="Finalizar Atendimento"
                                   >
                                     <Check className="h-6 w-6" />
@@ -738,7 +738,7 @@ export default function AdminDashboard() {
                                     <button
                                       onClick={() => handleStartService(item)}
                                       disabled={!!processingId}
-                                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-none"
+                                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 "
                                       title="Start Service"
                                     >
                                       <Play className="h-5 w-5 fill-current" />
