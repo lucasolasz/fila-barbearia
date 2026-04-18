@@ -39,6 +39,8 @@ export default function AdminDashboard() {
   const [localQueue, setLocalQueue] = useState<QueueItem[]>([]);
   const [isReordering, setIsReorderingState] = useState(false);
   const isReorderingRef = useRef(false);
+  const notifiedNextSet = useRef<Set<string>>(new Set());
+  const notifiedNearSet = useRef<Set<string>>(new Set());
 
   const setIsReordering = (value: boolean) => {
     isReorderingRef.current = value;
@@ -215,39 +217,61 @@ export default function AdminDashboard() {
           const notifiedNext = (item as any).notified_next;
           const notifiedNear = (item as any).notified_near;
 
-          if (peopleAhead === 0 && !notifiedNext) {
-            sent = await webhookService.sendWebhook(
-              "NEXT",
-              item,
-              position,
-              peopleAhead,
-              currentBaseTime,
-              shopName,
-              webhookUrl,
-              trackingUrlBase,
-            );
+          if (
+            peopleAhead === 0 &&
+            !notifiedNext &&
+            !notifiedNextSet.current.has(item.id)
+          ) {
+            notifiedNextSet.current.add(item.id);
+            if (item.customer?.phone?.startsWith("manual_")) {
+              sent = true; // Finge que enviou para atualizar o banco e não tentar de novo
+            } else {
+              sent = await webhookService.sendWebhook(
+                "NEXT",
+                item,
+                position,
+                peopleAhead,
+                currentBaseTime,
+                shopName,
+                webhookUrl,
+                trackingUrlBase,
+              );
+            }
             if (sent) {
               await supabase
                 .from("queue")
                 .update({ notified_next: true })
                 .eq("id", item.id);
+            } else {
+              notifiedNextSet.current.delete(item.id);
             }
-          } else if (peopleAhead === 2 && !notifiedNear) {
-            sent = await webhookService.sendWebhook(
-              "NEAR",
-              item,
-              position,
-              peopleAhead,
-              currentBaseTime,
-              shopName,
-              webhookUrl,
-              trackingUrlBase,
-            );
+          } else if (
+            peopleAhead === 2 &&
+            !notifiedNear &&
+            !notifiedNearSet.current.has(item.id)
+          ) {
+            notifiedNearSet.current.add(item.id);
+            if (item.customer?.phone?.startsWith("manual_")) {
+              sent = true; // Finge que enviou para atualizar o banco e não tentar de novo
+            } else {
+              sent = await webhookService.sendWebhook(
+                "NEAR",
+                item,
+                position,
+                peopleAhead,
+                currentBaseTime,
+                shopName,
+                webhookUrl,
+                trackingUrlBase,
+              );
+            }
             if (sent) {
               await supabase
                 .from("queue")
                 .update({ notified_near: true })
                 .eq("id", item.id);
+            } else {
+              notifiedNearSet.current.delete(item.id);
             }
           }
 
@@ -705,24 +729,32 @@ export default function AdminDashboard() {
                                   <h3 className="font-bold text-white">
                                     {item.customer?.name}
                                   </h3>
-                                  <p className="text-xs text-neutral-500">
-                                    {item.customer?.phone}
-                                  </p>
+                                  {item.customer?.phone &&
+                                    !item.customer.phone.startsWith(
+                                      "manual_",
+                                    ) && (
+                                      <p className="text-xs text-neutral-500">
+                                        {item.customer.phone}
+                                      </p>
+                                    )}
                                 </div>
                               </div>
 
                               <div className="flex items-center space-x-2">
-                                {item.customer?.phone && (
-                                  <a
-                                    href={`https://wa.me/${item.customer.phone.replace(/\D/g, "").startsWith("55") ? item.customer.phone.replace(/\D/g, "") : "55" + item.customer.phone.replace(/\D/g, "")}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-900/20 text-emerald-500 hover:bg-emerald-900/40 transition-all"
-                                    title="Contactar via WhatsApp"
-                                  >
-                                    <MessageCircle className="h-5 w-5" />
-                                  </a>
-                                )}
+                                {item.customer?.phone &&
+                                  !item.customer.phone.startsWith(
+                                    "manual_",
+                                  ) && (
+                                    <a
+                                      href={`https://wa.me/${item.customer.phone.replace(/\D/g, "").startsWith("55") ? item.customer.phone.replace(/\D/g, "") : "55" + item.customer.phone.replace(/\D/g, "")}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-900/20 text-emerald-500 hover:bg-emerald-900/40 transition-all"
+                                      title="Contactar via WhatsApp"
+                                    >
+                                      <MessageCircle className="h-5 w-5" />
+                                    </a>
+                                  )}
                                 {item.status === "serving" && (
                                   <button
                                     onClick={() => handleCompleteService(item)}
@@ -864,21 +896,37 @@ function AddCustomerForm({
     setLoading(true);
     try {
       // 1. Create/Get customer
-      const cleanPhone = phone.replace(/\D/g, "");
       let customerId;
-      const { data: existing } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("phone", cleanPhone)
-        .maybeSingle();
-      if (existing) {
-        customerId = existing.id;
-      } else {
-        const { data: created } = await supabase
+      const hasPhone = phone && phone.trim() !== "";
+      const cleanPhone = hasPhone
+        ? phone.replace(/\D/g, "")
+        : `manual_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+      // Só busca por um cliente existente se um telefone foi informado
+      if (hasPhone && cleanPhone) {
+        const { data: existing } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("phone", cleanPhone)
+          .maybeSingle();
+
+        if (existing) {
+          customerId = existing.id;
+          // Atualiza o nome do cliente existente com o que foi digitado agora
+          await supabase
+            .from("customers")
+            .update({ name })
+            .eq("id", customerId);
+        }
+      }
+
+      if (!customerId) {
+        const { data: created, error: createError } = await supabase
           .from("customers")
           .insert([{ name, phone: cleanPhone }])
           .select()
           .single();
+        if (createError) throw createError;
         customerId = created.id;
       }
 
@@ -886,20 +934,36 @@ function AddCustomerForm({
       const { data: last, error: lastError } = await supabase
         .from("queue")
         .select("position, code")
-        .order("created_at", { ascending: false })
+        .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (lastError) throw lastError;
 
       const nextPos = (last?.position || 0) + 1;
 
-      let nextCode = "A001";
-      if (last && last.code) {
-        const lastCodeNum = parseInt(last.code.substring(1));
-        if (!isNaN(lastCodeNum)) {
-          nextCode = `A${String(lastCodeNum + 1).padStart(3, "0")}`;
-        }
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const numbers = "0123456789";
+      const allChars = letters + numbers;
+      let nextCode = "";
+
+      for (let i = 0; i < 4; i++) {
+        nextCode += allChars.charAt(
+          Math.floor(Math.random() * allChars.length),
+        );
       }
+
+      if (!/\d/.test(nextCode)) {
+        nextCode += numbers.charAt(Math.floor(Math.random() * numbers.length));
+      } else {
+        nextCode += allChars.charAt(
+          Math.floor(Math.random() * allChars.length),
+        );
+      }
+
+      nextCode = nextCode
+        .split("")
+        .sort(() => Math.random() - 0.5)
+        .join("");
 
       const { data: queueEntry, error: queueError } = await supabase
         .from("queue")
@@ -919,21 +983,23 @@ function AddCustomerForm({
       // Send webhooks
       const peopleAhead = queueCount;
       const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
-      webhookService.sendWebhook(
-        "JOINED",
-        queueEntry,
-        nextPos,
-        peopleAhead,
-        currentBaseTime,
-        shopName,
-        webhookUrl,
-        trackingUrlBase,
-      );
+      if (!cleanPhone.startsWith("manual_")) {
+        webhookService.sendWebhook(
+          "JOINED",
+          queueEntry,
+          nextPos,
+          peopleAhead,
+          currentBaseTime,
+          shopName,
+          webhookUrl,
+          trackingUrlBase,
+        );
+      }
 
       toast.success("Adicionado à fila");
       onSuccess();
     } catch (error) {
-      toast.error("Falha ao adicionar cliente");
+      toast.error("Falha ao adicionar cliente" + error.message);
     } finally {
       setLoading(false);
     }

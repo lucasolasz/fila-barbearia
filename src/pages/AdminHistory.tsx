@@ -297,9 +297,12 @@ export default function AdminHistory() {
                         <p className="text-sm font-bold text-white">
                           {item.customer?.name}
                         </p>
-                        <p className="text-xs text-neutral-500">
-                          {item.customer?.phone}
-                        </p>
+                        {item.customer?.phone &&
+                          !item.customer.phone.startsWith("manual_") && (
+                            <p className="text-xs text-neutral-500">
+                              {item.customer.phone}
+                            </p>
+                          )}
                       </td>
                       <td className="px-6 py-4">
                         <span className="rounded-lg bg-neutral-800 px-2 py-1 text-xs font-black text-white">

@@ -119,7 +119,7 @@ export default function Join() {
       const { data: lastEntry, error: lastEntryError } = await supabase
         .from("queue")
         .select("position, code")
-        .order("created_at", { ascending: false })
+        .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
 
