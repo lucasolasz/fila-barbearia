@@ -221,9 +221,26 @@ export default function AdminSettings() {
       } = supabase.storage.from("logos").getPublicUrl(filePath);
 
       setLogoUrl(publicUrl);
-      toast.success(
-        "Logo carregada com sucesso! Não esqueça de salvar as alterações.",
-      );
+
+      // Salvar a nova logo diretamente no banco
+      const { data: current } = await supabase
+        .from("shop_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (current) {
+        await supabase
+          .from("shop_settings")
+          .update({ logo_url: publicUrl })
+          .eq("id", current.id);
+      } else {
+        await supabase
+          .from("shop_settings")
+          .insert([{ logo_url: publicUrl, manual_status: "auto" }]);
+      }
+
+      toast.success("Logo carregada e atualizada com sucesso!");
     } catch (error: any) {
       console.error("Erro no upload:", error);
       toast.error(
@@ -319,34 +336,28 @@ export default function AdminSettings() {
               <label className="block text-sm font-bold text-neutral-300 mb-1">
                 Logo da Barbearia
               </label>
-              <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
+              <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 items-start">
                 <div className="flex-1 space-y-4">
-                  <div className="flex space-x-2">
+                  <label className="flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-700 bg-neutral-800 p-6 text-neutral-400 hover:border-emerald-500 hover:bg-neutral-700/50 hover:text-emerald-500 transition-all">
+                    <Upload className="mb-2 h-8 w-8" />
+                    <span className="text-sm font-bold">
+                      Clique para escolher uma imagem
+                    </span>
                     <input
-                      type="text"
-                      value={logoUrl}
-                      onChange={(e) => setLogoUrl(e.target.value)}
-                      placeholder="https://exemplo.com/logo.png"
-                      className="flex-1 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-lg text-white outline-none focus:border-emerald-500 transition-all"
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      disabled={saving}
                     />
-                    <label className="flex cursor-pointer items-center justify-center rounded-xl bg-neutral-800 px-4 py-3 text-neutral-400 hover:bg-neutral-700 transition-colors">
-                      <Upload className="h-5 w-5" />
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        disabled={saving}
-                      />
-                    </label>
-                  </div>
+                  </label>
                   <p className="text-xs text-neutral-500">
-                    Faça upload de uma imagem ou insira o link direto.
-                    Recomendado: PNG ou SVG com fundo transparente.
+                    Recomendado: PNG ou SVG com fundo transparente. Máximo de
+                    2MB.
                   </p>
                 </div>
                 {logoUrl && (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-800 p-3">
+                  <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-800 p-3">
                     <img
                       src={logoUrl}
                       alt="Preview"
