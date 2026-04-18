@@ -1047,7 +1047,7 @@ function AddCustomerForm({
       toast.success("Adicionado à fila");
       onSuccess();
     } catch (error) {
-      toast.error("Falha ao adicionar cliente" + error.message);
+      toast.error("Falha ao adicionar cliente");
     } finally {
       setLoading(false);
     }
