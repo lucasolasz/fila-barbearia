@@ -1,9 +1,9 @@
 import {
   ArrowDown,
   ArrowRight,
+  CircleAlert,
   Clock,
   Loader2,
-  OctagonAlert,
   Phone,
   Scissors,
   User,
@@ -15,9 +15,9 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
+  calculateEstimatedServiceTime,
   useQueueCount,
   useShopStatus,
-  calculateEstimatedServiceTime,
 } from "../hooks/useQueue";
 import { supabase } from "../lib/supabase";
 
@@ -312,9 +312,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-3 rounded-full px-2.5 py-4 font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-              <OctagonAlert /> Você ainda não está na fila. Veja a estimativa:
-              <ArrowDown />
+            <div className="flex items-center justify-center gap-2 rounded-full px-3 py-4 text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+              <CircleAlert className="text-sm" /> Você ainda não está na fila.
+              Veja a estimativa:
+              <ArrowDown className="text-sm" />
             </div>
 
             <div className="space-y-6 text-left">
