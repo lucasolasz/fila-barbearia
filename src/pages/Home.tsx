@@ -48,8 +48,10 @@ export default function Home() {
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length < 8) {
-      toast.error("Por favor, insira um número de telefone válido");
+    if (phone.length !== 9 || !phone.startsWith("9")) {
+      toast.error(
+        "Por favor, insira um número de celular válido (9 dígitos, iniciando com 9)",
+      );
       return;
     }
     if (!name.trim()) {

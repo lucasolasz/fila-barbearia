@@ -30,6 +30,7 @@ import { QueueItem, supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
+import { DDD_OPTIONS } from "../constants/constants";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -932,6 +933,7 @@ function AddCustomerForm({
   onSuccess: () => void;
 }) {
   const [name, setName] = useState("");
+  const [ddd, setDdd] = useState("21");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -941,13 +943,22 @@ function AddCustomerForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (phone && (phone.length !== 9 || !phone.startsWith("9"))) {
+      toast.error(
+        "Por favor, insira um número de celular válido (9 dígitos, iniciando com 9)",
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Create/Get customer
       let customerId;
       const hasPhone = phone && phone.trim() !== "";
+      const fullPhone = hasPhone ? `${ddd}${phone}` : "";
       const cleanPhone = hasPhone
-        ? phone.replace(/\D/g, "")
+        ? fullPhone.replace(/\D/g, "")
         : `manual_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
       // Só busca por um cliente existente se um telefone foi informado
@@ -1071,12 +1082,39 @@ function AddCustomerForm({
         <label className="mb-1 block text-sm font-bold text-neutral-400">
           Telefone (Opcional)
         </label>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="h-12 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 text-white outline-none focus:bg-neutral-900 focus:border-emerald-500"
-        />
+        <div className="flex space-x-2">
+          <div className="relative w-24 shrink-0">
+            <select
+              value={ddd}
+              onChange={(e) => setDdd(e.target.value)}
+              className="h-12 w-full appearance-none rounded-xl border border-neutral-700 bg-neutral-800 px-4 text-white outline-none focus:bg-neutral-900 focus:border-emerald-500"
+            >
+              {DDD_OPTIONS.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </div>
+          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={phone}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              if (val.length <= 9) {
+                setPhone(val);
+              }
+            }}
+            placeholder="9XXXX-XXXX"
+            className="h-12 flex-1 rounded-xl border border-neutral-700 bg-neutral-800 px-4 text-white outline-none focus:bg-neutral-900 focus:border-emerald-500"
+          />
+        </div>
       </div>
       <div className="flex space-x-3 pt-4">
         <button
