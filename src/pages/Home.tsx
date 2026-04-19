@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
@@ -45,6 +45,20 @@ export default function Home() {
   const navigate = useNavigate();
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
+  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
+
+  useEffect(() => {
+    async function fetchMaxTime() {
+      const { data } = await supabase
+        .from("shop_settings")
+        .select("max_queue_time")
+        .maybeSingle();
+      if (data?.max_queue_time) {
+        setMaxQueueTime(data.max_queue_time);
+      }
+    }
+    fetchMaxTime();
+  }, []);
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +208,12 @@ export default function Home() {
     }
   };
 
+  const estimatedTimeStr = calculateEstimatedServiceTime(queueCount + 1);
+  const isQueueFull =
+    estimatedTimeStr !== "Agora" &&
+    maxQueueTime &&
+    estimatedTimeStr.split(" ")[0] > maxQueueTime;
+
   if (statusLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-950">
@@ -240,6 +260,14 @@ export default function Home() {
           <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30">
             <p className="font-medium">A barbearia está fechada no momento.</p>
             <p className="mt-1 text-sm opacity-90">{message}</p>
+          </div>
+        ) : isQueueFull ? (
+          <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30">
+            <p className="font-medium">A fila está lotada no momento.</p>
+            <p className="mt-1 text-sm opacity-90">
+              O tempo estimado de atendimento ultrapassa nosso horário limite de{" "}
+              {maxQueueTime}. Por favor, tente novamente outro dia.
+            </p>
           </div>
         ) : (
           <form onSubmit={handleJoinSubmit} className="space-y-4">
@@ -337,7 +365,7 @@ export default function Home() {
                     Horário estimado
                   </p>
                   <p className="text-xl font-black text-white mt-2">
-                    {calculateEstimatedServiceTime(queueCount + 1)}
+                    {estimatedTimeStr}
                   </p>
                 </div>
               </div>

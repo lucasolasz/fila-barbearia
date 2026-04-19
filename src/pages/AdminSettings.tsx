@@ -29,6 +29,7 @@ export default function AdminSettings() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [trackingUrlBase, setTrackingUrlBase] = useState("");
   const [baseQueueTime, setBaseQueueTime] = useState(30);
+  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
     success: boolean;
@@ -56,7 +57,7 @@ export default function AdminSettings() {
       const { data: settings } = await supabase
         .from("shop_settings")
         .select(
-          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time",
+          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, max_queue_time",
         )
         .limit(1)
         .maybeSingle();
@@ -80,6 +81,9 @@ export default function AdminSettings() {
       }
       if (settings?.base_queue_time != null) {
         setBaseQueueTime(settings.base_queue_time);
+      }
+      if (settings?.max_queue_time) {
+        setMaxQueueTime(settings.max_queue_time);
       }
 
       setLoading(false);
@@ -120,6 +124,7 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
+            max_queue_time: maxQueueTime,
           })
           .eq("id", current.id);
       } else {
@@ -132,6 +137,7 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
+            max_queue_time: maxQueueTime,
           },
         ]);
       }
@@ -396,6 +402,32 @@ export default function AdminSettings() {
               </div>
               <p className="mt-2 text-xs text-neutral-500">
                 Inclua o código do país e DDD (ex: +5521999999999)
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Hourglass className="h-6 w-6 text-emerald-600" />
+            <h2 className="text-xl font-bold text-white">
+              Configurações da Fila
+            </h2>
+          </div>
+          <div className="rounded-2xl bg-neutral-900 p-6 shadow-sm border border-neutral-800 space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-neutral-300 mb-1">
+                Horário Limite para Entrar na Fila
+              </label>
+              <input
+                type="time"
+                value={maxQueueTime}
+                onChange={(e) => setMaxQueueTime(e.target.value)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-lg text-white outline-none focus:border-emerald-500 transition-all"
+              />
+              <p className="mt-2 text-xs text-neutral-500">
+                Se a estimativa de atendimento ultrapassar este horário, a fila
+                será bloqueada para novos clientes.
               </p>
             </div>
           </div>

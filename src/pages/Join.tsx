@@ -31,6 +31,20 @@ export default function Join() {
   const queueCount = useQueueCount();
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
+  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
+
+  useEffect(() => {
+    async function fetchMaxTime() {
+      const { data } = await supabase
+        .from("shop_settings")
+        .select("max_queue_time")
+        .maybeSingle();
+      if (data?.max_queue_time) {
+        setMaxQueueTime(data.max_queue_time);
+      }
+    }
+    fetchMaxTime();
+  }, []);
 
   useEffect(() => {
     if (!phone) {
@@ -225,6 +239,12 @@ export default function Join() {
     );
   }
 
+  const estimatedTimeStr = calculateEstimatedServiceTime(queueCount + 1);
+  const isQueueFull =
+    estimatedTimeStr !== "Agora" &&
+    maxQueueTime &&
+    estimatedTimeStr.split(" ")[0] > maxQueueTime;
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 bg-neutral-950">
       <motion.div
@@ -247,72 +267,86 @@ export default function Join() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
-            <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-            <p className="text-xs font-bold uppercase text-neutral-500">
-              Sua Posição
-            </p>
-            <p className="text-2xl font-black text-white">{queueCount + 1}º</p>
-          </div>
-          <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
-            <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-            <p className="text-xs font-bold uppercase text-neutral-500">
-              Horário Estimado
-            </p>
-            <p className="text-2xl font-black text-white">
-              {calculateEstimatedServiceTime(queueCount + 1)}
+        {isQueueFull ? (
+          <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30 text-center">
+            <p className="font-medium">A fila está lotada no momento.</p>
+            <p className="mt-1 text-sm opacity-90">
+              O tempo estimado de atendimento ultrapassa nosso horário limite de{" "}
+              {maxQueueTime}. Por favor, tente novamente outro dia.
             </p>
           </div>
-        </div>
-
-        <form
-          onSubmit={handleJoin}
-          className="space-y-6 rounded-3xl bg-neutral-900 p-8 shadow-none border border-neutral-800"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-300">
-                Número de Telefone
-              </label>
-              <div className="rounded-xl bg-neutral-800 p-4 text-neutral-400 border border-neutral-700">
-                {phone}
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
+                <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+                <p className="text-xs font-bold uppercase text-neutral-500">
+                  Sua Posição
+                </p>
+                <p className="text-2xl font-black text-white">
+                  {queueCount + 1}º
+                </p>
+              </div>
+              <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
+                <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+                <p className="text-xs font-bold uppercase text-neutral-500">
+                  Horário Estimado
+                </p>
+                <p className="text-2xl font-black text-white">
+                  {estimatedTimeStr}
+                </p>
               </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-300">
-                Seu Nome
-              </label>
-              <div className="relative">
-                <User className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Digite seu nome completo"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="h-14 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/20 outline-none"
-                  required
-                />
-              </div>
-            </div>
-          </div>
+            <form
+              onSubmit={handleJoin}
+              className="space-y-6 rounded-3xl bg-neutral-900 p-8 shadow-none border border-neutral-800"
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-300">
+                    Número de Telefone
+                  </label>
+                  <div className="rounded-xl bg-neutral-800 p-4 text-neutral-400 border border-neutral-700">
+                    {phone}
+                  </div>
+                </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-14 w-full items-center justify-center rounded-xl bg-emerald-600 text-lg font-semibold text-white shadow-none transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-70"
-          >
-            {loading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <>
-                Entrar na Fila Agora
-                <CheckCircle2 className="ml-2 h-5 w-5" />
-              </>
-            )}
-          </button>
-        </form>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-300">
+                    Seu Nome
+                  </label>
+                  <div className="relative">
+                    <User className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Digite seu nome completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="h-14 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/20 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-14 w-full items-center justify-center rounded-xl bg-emerald-600 text-lg font-semibold text-white shadow-none transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-70"
+              >
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <>
+                    Entrar na Fila Agora
+                    <CheckCircle2 className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </button>
+            </form>
+          </>
+        )}
       </motion.div>
     </div>
   );
