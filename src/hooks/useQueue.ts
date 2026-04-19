@@ -165,17 +165,9 @@ export function calculateEstimatedServiceTime(posicaoNaFila: number): string {
 
   // 👉 arredondamento correto
   minTime = roundDateUpTo15(minTime);
-  maxTime = roundDateDownTo15(maxTime);
 
-  // 👉 proteção contra inversão (bug 22:00 e 21:45)
-  if (maxTime < minTime) {
-    maxTime = new Date(minTime.getTime() + 15 * 60000);
-  }
-
-  // 👉 evita intervalo igual (ex: 10:30 e 10:30)
-  if (maxTime.getTime() === minTime.getTime()) {
-    maxTime = new Date(minTime.getTime() + 15 * 60000);
-  }
+  // 👉 força o intervalo a ser exatamente de 15 minutos visualmente
+  maxTime = new Date(minTime.getTime() + 15 * 60000);
 
   return `${format(minTime, "HH:mm")} e ${format(maxTime, "HH:mm")}`;
 }
