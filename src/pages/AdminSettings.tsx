@@ -459,34 +459,6 @@ export default function AdminSettings() {
 
         <section className="space-y-4">
           <div className="flex items-center space-x-2">
-            <Hourglass className="h-6 w-6 text-emerald-600" />
-            <h2 className="text-xl font-bold text-white">
-              Configurações de Atendimento
-            </h2>
-          </div>
-          <div className="rounded-2xl bg-neutral-900 p-6 shadow-sm border border-neutral-800 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-neutral-300 mb-1">
-                Tempo Médio de Atendimento (minutos)
-              </label>
-              <input
-                type="number"
-                value={baseQueueTime}
-                onChange={(e) =>
-                  setBaseQueueTime(parseInt(e.target.value) || 30)
-                }
-                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-lg text-white outline-none focus:border-emerald-500 transition-all"
-              />
-              <p className="mt-2 text-xs text-neutral-500">
-                Este tempo será usado para calcular as estimativas de espera
-                para os clientes na fila.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex items-center space-x-2">
             <Clock className="h-6 w-6 text-emerald-600" />
             <h2 className="text-xl font-bold text-white">Horário Semanal</h2>
           </div>
