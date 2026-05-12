@@ -67,6 +67,13 @@ export default function AdminDashboard() {
       .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
   }, []);
 
+  const playWaitingAlertSound = useCallback(() => {
+    const audio = new Audio("/alerta-fila-vazia.mp3");
+    audio
+      .play()
+      .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
+  }, []);
+
   const fetchQueue = useCallback(async () => {
     const { data, error } = await supabase
       .from("queue")
@@ -148,6 +155,19 @@ export default function AdminDashboard() {
       };
     }
   }, [isAuthenticated, fetchQueue, fetchSettings, playUpdateSound]);
+
+  useEffect(() => {
+    if (!isAuthenticated || queue.length === 0) return;
+
+    const hasServing = queue.some((item) => item.status === "serving");
+    if (hasServing) return;
+
+    const interval = setInterval(() => {
+      playWaitingAlertSound();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, queue, playWaitingAlertSound]);
 
   useEffect(() => {
     const auth = sessionStorage.getItem("barber_admin_auth");
