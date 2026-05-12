@@ -15,6 +15,7 @@ import InService from "./pages/InService";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminSettings from "./pages/AdminSettings";
 import AdminHistory from "./pages/AdminHistory";
+import AdminCampaigns from "./pages/AdminCampaigns";
 import { Toaster } from "react-hot-toast";
 import { ShopSettingsProvider } from "./hooks/useShopSettings";
 
@@ -100,6 +101,7 @@ function AppContent() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/admin/history" element={<AdminHistory />} />
+            <Route path="/admin/campaigns" element={<AdminCampaigns />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
