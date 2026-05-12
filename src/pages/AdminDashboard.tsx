@@ -25,7 +25,11 @@ import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import { useQueueCount, calculateEstimatedMinutes } from "../hooks/useQueue";
+import {
+  useQueueCount,
+  calculateEstimatedMinutes,
+  calculateEstimatedServiceTime,
+} from "../hooks/useQueue";
 import { QueueItem, supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
@@ -823,6 +827,20 @@ export default function AdminDashboard() {
                     className="space-y-3"
                   >
                     {localQueue.map((item, index) => {
+                      const servingCount = localQueue.filter(
+                        (i) => i.status === "serving",
+                      ).length;
+                      const waitingItems = localQueue.filter(
+                        (i) => i.status === "waiting",
+                      );
+                      const waitingIndex = waitingItems.findIndex(
+                        (i) => i.id === item.id,
+                      );
+                      const position =
+                        item.status === "serving"
+                          ? 1
+                          : servingCount + waitingIndex + 1;
+                      const estimatedTime = calculateEstimatedServiceTime(position);
                       const DraggableComponent = Draggable as any;
                       return (
                         <DraggableComponent
@@ -894,6 +912,9 @@ export default function AdminDashboard() {
                                       Iniciou: {new Date(item.service_start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                                     </p>
                                   )}
+                                  <p className="text-xs text-neutral-500 mt-0.5">
+                                    Previsto: {estimatedTime}
+                                  </p>
                                 </div>
                               </div>
 
