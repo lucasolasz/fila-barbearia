@@ -122,13 +122,13 @@ export default function Home() {
 
         const { error: updateError } = await supabase
           .from("customers")
-          .update({ name })
+          .update({ name: name.trim() })
           .eq("id", customerId);
         if (updateError) throw updateError;
       } else {
         const { data: newCustomer, error: createError } = await supabase
           .from("customers")
-          .insert([{ name, phone: fullPhone }])
+          .insert([{ name: name.trim(), phone: fullPhone }])
           .select()
           .single();
         if (createError) throw createError;

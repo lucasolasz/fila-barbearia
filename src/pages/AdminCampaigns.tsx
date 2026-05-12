@@ -10,27 +10,26 @@ import {
   Italic,
   Megaphone,
   Send,
+  X,
 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useShopSettings } from "../hooks/useShopSettings";
 
 export default function AdminCampaigns() {
   const navigate = useNavigate();
   const [campaignTitle, setCampaignTitle] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [availableContacts] = useState([
-    { id: "1", name: "Mateus Rosa", phone: "21999990001" },
-    { id: "2", name: "Bruno Cavalcante", phone: "21999990002" },
-    { id: "3", name: "Sidinei", phone: "21999990003" },
-    { id: "4", name: "Carlos Silva", phone: "21999990004" },
-    { id: "5", name: "André Santos", phone: "21999990005" },
-    { id: "6", name: "Rafael Oliveira", phone: "21999990006" },
-  ]);
+  const [availableContacts, setAvailableContacts] = useState<
+    { id: string; name: string; phone: string }[]
+  >([]);
   const [selectedContacts, setSelectedContacts] = useState<
     { id: string; name: string; phone: string }[]
   >([]);
+  const [searchAvailable, setSearchAvailable] = useState("");
+  const [searchSelected, setSearchSelected] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { webhookUrl, shopName, logoUrl } = useShopSettings();
+  const { shopName, logoUrl } = useShopSettings();
 
   useEffect(() => {
     const auth = sessionStorage.getItem("barber_admin_auth");
@@ -38,7 +37,33 @@ export default function AdminCampaigns() {
       navigate("/admin");
       return;
     }
-    setLoading(false);
+
+    async function fetchCustomers() {
+      const { data } = await supabase
+        .from("customers")
+        .select("id, name, phone")
+        .order("name", { ascending: true });
+
+      if (data) {
+        const validContacts = (data as { id: string; name: string; phone: string }[])
+          .filter((c) => c.phone && !c.phone.startsWith("manual_"))
+          .map((c) => {
+            const cleanPhone = c.phone.replace(/\D/g, "");
+            const phone55 =
+              cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+            return {
+              id: c.id,
+              name: c.name.trim(),
+              phone: phone55,
+            };
+          })
+          .filter((c) => c.phone.length >= 12 && c.phone.length <= 13);
+        setAvailableContacts(validContacts);
+      }
+      setLoading(false);
+    }
+
+    fetchCustomers();
   }, [navigate]);
 
   const formatPreviewMessage = (text: string) => {
@@ -84,14 +109,14 @@ export default function AdminCampaigns() {
   };
 
   const handleMoveToSelected = (contactId: string) => {
-    const contact = availableContacts.find((c) => c.id === contactId);
-    if (contact && !selectedContacts.find((c) => c.id === contactId)) {
+    const contact = availableContacts.find((c: { id: string; name: string; phone: string }) => c.id === contactId);
+    if (contact && !selectedContacts.find((c: { id: string; name: string; phone: string }) => c.id === contactId)) {
       setSelectedContacts([...selectedContacts, contact]);
     }
   };
 
   const handleMoveToAvailable = (contactId: string) => {
-    setSelectedContacts(selectedContacts.filter((c) => c.id !== contactId));
+    setSelectedContacts(selectedContacts.filter((c: { id: string; name: string; phone: string }) => c.id !== contactId));
   };
 
   const CAMPAIGN_WEBHOOK_URL = "https://n8ndes.ltech.app.br/webhook/campanha";
@@ -238,10 +263,33 @@ export default function AdminCampaigns() {
                     <p className="text-xs text-neutral-500 mb-2 font-semibold uppercase">
                       Contatos Disponíveis
                     </p>
-                    <div className="border border-neutral-700 rounded-xl bg-neutral-800 max-h-48 overflow-y-auto">
+                    <div className="relative mb-2">
+                      <input
+                        type="text"
+                        value={searchAvailable}
+                        onChange={(e) => setSearchAvailable(e.target.value)}
+                        placeholder="Pesquisar..."
+                        className="w-full h-10 rounded-lg border border-neutral-700 bg-neutral-800 pl-3 pr-8 text-sm text-white outline-none focus:border-emerald-500"
+                      />
+                      {searchAvailable && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchAvailable("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="border border-neutral-700 rounded-xl bg-neutral-800 h-64 overflow-y-auto">
                       {availableContacts
                         .filter(
-                          (c) => !selectedContacts.find((s) => s.id === c.id),
+                          (c: { id: string; name: string; phone: string }) =>
+                            !selectedContacts.find((s) => s.id === c.id) &&
+                            (c.name
+                              .toLowerCase()
+                              .includes(searchAvailable.toLowerCase()) ||
+                              c.phone.includes(searchAvailable))
                         )
                         .map((contact) => (
                           <div
@@ -303,8 +351,34 @@ export default function AdminCampaigns() {
                     <p className="text-xs text-neutral-500 mb-2 font-semibold uppercase">
                       Selecionados ({selectedContacts.length})
                     </p>
-                    <div className="border border-neutral-700 rounded-xl bg-neutral-800 max-h-48 overflow-y-auto">
-                      {selectedContacts.map((contact) => (
+                    <div className="relative mb-2">
+                      <input
+                        type="text"
+                        value={searchSelected}
+                        onChange={(e) => setSearchSelected(e.target.value)}
+                        placeholder="Pesquisar..."
+                        className="w-full h-10 rounded-lg border border-neutral-700 bg-neutral-800 pl-3 pr-8 text-sm text-white outline-none focus:border-emerald-500"
+                      />
+                      {searchSelected && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchSelected("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="border border-neutral-700 rounded-xl bg-neutral-800 h-64 overflow-y-auto">
+                      {selectedContacts
+                        .filter(
+                          (c: { id: string; name: string; phone: string }) =>
+                            c.name
+                              .toLowerCase()
+                              .includes(searchSelected.toLowerCase()) ||
+                            c.phone.includes(searchSelected)
+                        )
+                        .map((contact) => (
                         <div
                           key={contact.id}
                           className="flex items-center justify-between px-4 py-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700 last:border-b-0"

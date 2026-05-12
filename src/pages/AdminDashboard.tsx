@@ -1205,10 +1205,9 @@ function AddCustomerForm({
 
         if (existing) {
           customerId = existing.id;
-          // Atualiza o nome do cliente existente com o que foi digitado agora
           await supabase
             .from("customers")
-            .update({ name })
+            .update({ name: name.trim() })
             .eq("id", customerId);
         }
       }
@@ -1216,7 +1215,7 @@ function AddCustomerForm({
       if (!customerId) {
         const { data: created, error: createError } = await supabase
           .from("customers")
-          .insert([{ name, phone: cleanPhone }])
+          .insert([{ name: name.trim(), phone: cleanPhone }])
           .select()
           .single();
         if (createError) throw createError;
