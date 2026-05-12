@@ -6,6 +6,8 @@ import {
   Bold,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Image,
   Italic,
   Megaphone,
@@ -149,6 +151,16 @@ export default function AdminCampaigns() {
     }
   };
 
+  const handleDeleteSentCampaign = async (campaignId: string) => {
+    try {
+      await supabase.from("campaigns").delete().eq("id", campaignId);
+      toast.success("Campanha excluída!");
+      fetchSentCampaigns();
+    } catch (error) {
+      toast.error("Falha ao excluir campanha");
+    }
+  };
+
   const formatPreviewMessage = (text: string) => {
     let formatted = text;
     formatted = formatted.replace(/\n/g, "<br>");
@@ -200,6 +212,17 @@ export default function AdminCampaigns() {
 
   const handleMoveToAvailable = (contactId: string) => {
     setSelectedContacts(selectedContacts.filter((c: { id: string; name: string; phone: string }) => c.id !== contactId));
+  };
+
+  const handleSelectAll = () => {
+    const filtered = availableContacts.filter(
+      (c) => !selectedContacts.find((s) => s.id === c.id)
+    );
+    setSelectedContacts([...selectedContacts, ...filtered]);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedContacts([]);
   };
 
   const CAMPAIGN_WEBHOOK_URL = "https://n8ndes.ltech.app.br/webhook/campanha";
@@ -309,40 +332,42 @@ export default function AdminCampaigns() {
             {drafts.length === 0 ? (
               <p className="text-neutral-500 text-sm py-4 text-center">Nenhum rascunho salvo</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
-                {drafts.map((draft) => (
-                  <div
-                    key={draft.id}
-                    className="bg-neutral-800 rounded-xl p-4 border border-neutral-700 hover:border-emerald-500 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-white truncate">{draft.title}</h3>
-                        <p className="text-xs text-neutral-500 mt-1">
-                          {new Date(draft.created_at).toLocaleDateString("pt-BR")}
-                        </p>
-                        <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{draft.message}</p>
-                        <p className="text-xs text-emerald-500 mt-2">{draft.recipient_count} contatos</p>
-                      </div>
-                      <div className="flex flex-col gap-1 ml-2">
-                        <button
-                          onClick={() => handleLoadDraft(draft)}
-                          className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                          title="Carregar"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDraft(draft.id)}
-                          className="p-2 bg-neutral-700 hover:bg-red-600 text-neutral-400 hover:text-white rounded-lg transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+              <div className="max-h-64 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
+                  {drafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="bg-neutral-800 rounded-xl p-4 border border-neutral-700 hover:border-emerald-500 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-white truncate">{draft.title}</h3>
+                          <p className="text-xs text-neutral-500 mt-1">
+                            {new Date(draft.created_at).toLocaleString("pt-BR")}
+                          </p>
+                          <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{draft.message}</p>
+                          <p className="text-xs text-emerald-500 mt-2">{draft.recipient_count} contatos</p>
+                        </div>
+                        <div className="flex flex-col gap-1 ml-2">
+                          <button
+                            onClick={() => handleLoadDraft(draft)}
+                            className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                            title="Carregar"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDraft(draft.id)}
+                            className="p-2 bg-neutral-700 hover:bg-red-600 text-neutral-400 hover:text-white rounded-lg transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -364,33 +389,42 @@ export default function AdminCampaigns() {
             {sentCampaigns.length === 0 ? (
               <p className="text-neutral-500 text-sm py-4 text-center">Nenhuma campanha enviada</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
-                {sentCampaigns.map((campaign) => (
-                  <div
-                    key={campaign.id}
-                    className="bg-neutral-800 rounded-xl p-4 border border-neutral-700"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-white truncate">{campaign.title}</h3>
-                        <p className="text-xs text-neutral-500 mt-1">
-                          {new Date(campaign.created_at).toLocaleDateString("pt-BR")}
-                        </p>
-                        <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{campaign.message}</p>
-                        <p className="text-xs text-emerald-500 mt-2">{campaign.recipient_count} contatos</p>
-                      </div>
-                      <div className="flex flex-col gap-1 ml-2">
-                        <button
-                          onClick={() => handleLoadDraft({ id: campaign.id, title: campaign.title, message: campaign.message })}
-                          className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                          title="Carregar"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
+              <div className="max-h-64 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
+                  {sentCampaigns.map((campaign) => (
+                    <div
+                      key={campaign.id}
+                      className="bg-neutral-800 rounded-xl p-4 border border-neutral-700"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-white truncate">{campaign.title}</h3>
+                          <p className="text-xs text-neutral-500 mt-1">
+                            {new Date(campaign.created_at).toLocaleString("pt-BR")}
+                          </p>
+                          <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{campaign.message}</p>
+                          <p className="text-xs text-emerald-500 mt-2">{campaign.recipient_count} contatos</p>
+                        </div>
+                        <div className="flex flex-col gap-1 ml-2">
+                          <button
+                            onClick={() => handleLoadDraft({ id: campaign.id, title: campaign.title, message: campaign.message })}
+                            className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                            title="Carregar"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSentCampaign(campaign.id)}
+                            className="p-2 bg-neutral-700 hover:bg-red-600 text-neutral-400 hover:text-white rounded-lg transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -529,29 +563,19 @@ export default function AdminCampaigns() {
                   <div className="flex flex-col space-y-2">
                     <button
                       type="button"
-                      onClick={() =>
-                        availableContacts.forEach((c) => {
-                          if (!selectedContacts.find((s) => s.id === c.id)) {
-                            handleMoveToSelected(c.id);
-                          }
-                        })
-                      }
-                      className="p-2 bg-neutral-800 hover:bg-emerald-600 text-neutral-400 hover:text-white rounded-xl transition-colors"
+                      onClick={handleSelectAll}
+                      className="flex items-center justify-center px-3 py-2 bg-neutral-800 hover:bg-emerald-600 text-neutral-400 hover:text-white rounded-xl transition-colors"
                       title="Selecionar Todos"
                     >
-                      <ChevronRight className="h-5 w-5" />
+                      <ChevronsRight className="h-5 w-5" />
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        selectedContacts.forEach((c) =>
-                          handleMoveToAvailable(c.id),
-                        )
-                      }
-                      className="p-2 bg-neutral-800 hover:bg-red-600 text-neutral-400 hover:text-white rounded-xl transition-colors"
+                      onClick={handleDeselectAll}
+                      className="flex items-center justify-center px-3 py-2 bg-neutral-800 hover:bg-red-600 text-neutral-400 hover:text-white rounded-xl transition-colors"
                       title="Remover Todos"
                     >
-                      <ChevronLeft className="h-5 w-5" />
+                      <ChevronsLeft className="h-5 w-5" />
                     </button>
                   </div>
 
