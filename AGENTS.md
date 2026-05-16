@@ -35,6 +35,7 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | `notified_near` | Flag para evitar re-envio de webhook NEAR |
 | `last_update_sent_at` | Timestamp do último webhook UPDATE |
 | `last_sent_eta` | Último ETA enviado |
+| `last_delay_sent_at` | Timestamp do último webhook DELAYED |
 
 ---
 
@@ -117,6 +118,7 @@ O sistema envia webhooks para integração externa (ex: n8n). Tipos de evento:
 | `NEXT` | Cliente chega no topo da fila de espera (`peopleAhead === servingCount`) |
 | `NEAR` | Cliente está próximo (`peopleAhead <= 2`) |
 | `UPDATE` | Posição muda e ETA muda >= 10min (com cooldown de 5min) |
+| `DELAYED` | Atendimento atual está com atraso (a cada 10min de delay após 37min) |
 
 **Importante**: O `position` enviado no webhook deve ser a **posição real na fila** (1, 2, 3...), não o ID sequencial do banco. A posição real inclui quem está sendo atendido.
 
@@ -213,19 +215,45 @@ Para cada item na fila, o card exibe:
 ```
 src/
 ├── lib/
-│   └── supabase.ts          # Cliente Supabase
+│   └── supabase.ts          # Cliente Supabase e tipos (Customer, QueueItem, Service, Schedule, ScheduleException, ShopSettings)
 ├── hooks/
-│   ├── useQueue.ts         # Hooks de fila (contagem, tempo estimado)
-│   └── useShopSettings.ts  # Configurações da loja
+│   ├── useQueue.ts         # Hooks de fila (contagem, tempo estimado, status da loja)
+│   └── useShopSettings.tsx # Configurações da loja (theme, shopName, logoUrl, etc)
 ├── services/
-│   └── webhookService.ts   # Serviço de webhooks
+│   └── webhookService.ts   # Serviço de webhooks (JOINED, NEAR, NEXT, UPDATE, DELAYED)
 ├── pages/
 │   ├── Home.tsx            # Entrar na fila
 │   ├── Join.tsx            # Entrar via código (alternativo)
 │   ├── QueueStatus.tsx     # Ver status na fila
-│   └── AdminDashboard.tsx  # Painel admin
+│   ├── InService.tsx       # Tela quando cliente está em atendimento
+│   ├── AdminDashboard.tsx  # Painel admin (fila, notificações, controle)
+│   ├── AdminSettings.tsx   # Configurações da barbearia
+│   ├── AdminHistory.tsx    # Histórico de atendimentos
+│   └── AdminCampaigns.tsx  # Campanhas de WhatsApp
 └── constants/
-    └── constants.ts        # DDDs, etc
+    └── constants.ts        # DDDs, weekdays
+```
+
+---
+
+## Campanhas de WhatsApp
+
+O AdminCampaigns envia campanhas para um webhook fixo:
+- URL: `https://n8ndes.ltech.app.br/webhook/campanha`
+- Tabelas: `campaigns` (campanhas enviadas) e `campaign_drafts` (rascunhos)
+- Formatação: `**texto**` = negrito, `*texto*` = itálico
+
+---
+
+## Tipos Principais (supabase.ts)
+
+```typescript
+Customer { id, name, phone, created_at }
+QueueItem { id, code, customer_id, position, status, created_at, service_start, service_end, customer?, notified_near?, notified_next?, last_update_sent_at?, last_sent_eta?, last_delay_sent_at? }
+Service { id, customer_id, duration_minutes, created_at }
+Schedule { id, weekday, open_time, close_time, is_closed }
+ScheduleException { id, date, open_time, close_time, is_closed }
+ShopSettings { id, manual_status, whatsapp_number, theme, shop_name, logo_url, webhook_url?, tracking_url_base?, base_queue_time?, max_queue_time? }
 ```
 
 ---
