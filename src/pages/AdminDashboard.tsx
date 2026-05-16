@@ -827,7 +827,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => navigate("/admin/campaigns")}
-              className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 transition-colors"
+              className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 transition-colors hidden"
               title="Campanhas"
             >
               <Megaphone className="h-6 w-6" />
