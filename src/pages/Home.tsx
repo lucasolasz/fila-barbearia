@@ -62,6 +62,32 @@ export default function Home() {
     fetchMaxTime();
   }, []);
 
+  useEffect(() => {
+    if (statusLoading) return;
+
+    const storedQueueId = localStorage.getItem("barber_queue_id");
+    const storedCode = localStorage.getItem("barber_queue_code");
+
+    if (!storedQueueId || !storedCode) return;
+
+    supabase
+      .from("queue")
+      .select("id, status")
+      .eq("id", storedQueueId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error && error.code !== "PGRST116") return;
+        if (!data) {
+          localStorage.removeItem("barber_queue_id");
+          localStorage.removeItem("barber_queue_code");
+          return;
+        }
+        if (data.status === "waiting" || data.status === "serving") {
+          navigate("/queue");
+        }
+      });
+  }, [statusLoading, navigate]);
+
   const handleConfirmJoin = () => {
     setShowConfirmDialog(false);
     handleJoinSubmit();
