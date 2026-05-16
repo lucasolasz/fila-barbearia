@@ -196,13 +196,13 @@ export default function AdminDashboard() {
         if (!servingItem?.service_start) return;
 
         const startTime = new Date(servingItem.service_start).getTime();
-        const oneHourAgo = Date.now() - 60 * 60 * 1000;
+        const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
 
-        if (startTime < oneHourAgo) {
+        if (startTime < thirtyMinutesAgo) {
           playServingTimeoutSound();
         }
       },
-      5 * 60 * 1000,
+      10 * 60 * 1000,
     );
 
     return () => clearInterval(interval);
