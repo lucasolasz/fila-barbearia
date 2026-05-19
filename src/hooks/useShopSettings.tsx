@@ -16,6 +16,7 @@ interface ShopSettingsContextType {
   trackingUrlBase: string | null;
   baseQueueTime: number | null;
   isLunchPaused: boolean;
+  isPreOpening: boolean;
   setTheme: (theme: "light" | "dark") => void;
 }
 
@@ -56,6 +57,7 @@ export function useShopSettingsHook() {
     trackingUrlBase: null as string | null,
     baseQueueTime: null as number | null,
     isLunchPaused: false,
+    isPreOpening: false,
   });
 
   const setTheme = (theme: "light" | "dark") => {
@@ -68,7 +70,7 @@ export function useShopSettingsHook() {
       const { data } = await supabase
         .from("shop_settings")
         .select(
-          "theme, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, is_lunch_paused",
+          "theme, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, is_lunch_paused, is_pre_opening",
         )
         .limit(1)
         .maybeSingle();
@@ -90,6 +92,7 @@ export function useShopSettingsHook() {
           trackingUrlBase: data.tracking_url_base,
           baseQueueTime: data.base_queue_time,
           isLunchPaused: data.is_lunch_paused ?? false,
+          isPreOpening: data.is_pre_opening ?? false,
         });
       }
     }
@@ -120,6 +123,7 @@ export function useShopSettingsHook() {
               trackingUrlBase: payload.new.tracking_url_base,
               baseQueueTime: payload.new.base_queue_time,
               isLunchPaused: payload.new.is_lunch_paused ?? false,
+              isPreOpening: payload.new.is_pre_opening ?? false,
             });
           }
         },
@@ -169,6 +173,7 @@ export function useShopSettings() {
       trackingUrlBase: null as string | null,
       baseQueueTime: null as number | null,
       isLunchPaused: false,
+      isPreOpening: false,
       setTheme: () => {},
     };
   }

@@ -74,7 +74,7 @@ export default function Home() {
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
-  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime, isLunchPaused } =
+  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime, isLunchPaused, isPreOpening } =
     useShopSettings();
   const [maxQueueTime, setMaxQueueTime] = useState("19:00");
 
@@ -364,7 +364,7 @@ export default function Home() {
           </p>
         </div>
 
-        {!isOpen ? (
+        {!isOpen && !isPreOpening ? (
           <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30">
             <p className="font-medium">A barbearia está fechada no momento.</p>
             <p className="mt-1 text-sm opacity-90">{message}</p>
@@ -384,6 +384,14 @@ export default function Home() {
                 <p className="font-medium">Estamos em pausa para o almoço.</p>
                 <p className="mt-1 text-sm opacity-90">
                   Você pode entrar na fila e será atendido ao retornarmos.
+                </p>
+              </div>
+            )}
+            {isPreOpening && (
+              <div className="rounded-2xl bg-blue-900/20 p-4 text-blue-400 border border-blue-900/30">
+                <p className="font-medium">Barbearia abrindo em breve.</p>
+                <p className="mt-1 text-sm opacity-90">
+                  Você já pode entrar na fila e será atendido quando o barbeiro chegar.
                 </p>
               </div>
             )}
@@ -498,9 +506,11 @@ export default function Home() {
                     Horário estimado
                   </p>
                   <p className="text-xl font-black text-white mt-2">
-                    {isLunchPaused && estimatedTimeStr === "Agora"
-                      ? "A confirmar"
-                      : estimatedTimeStr}
+                    {isPreOpening
+                      ? "Em breve"
+                      : isLunchPaused && estimatedTimeStr === "Agora"
+                        ? "A confirmar"
+                        : estimatedTimeStr}
                   </p>
                 </div>
               </div>

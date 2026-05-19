@@ -5,6 +5,7 @@ import {
   calculateEstimatedMinutes,
   calculateEstimatedServiceTime,
   useQueueCount,
+  useShopStatus,
 } from "../hooks/useQueue";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { QueueItem, supabase } from "../lib/supabase";
@@ -41,8 +42,10 @@ export default function AdminDashboard() {
     "auto",
   );
   const [isLunchPaused, setIsLunchPaused] = useState(false);
+  const [isPreOpening, setIsPreOpening] = useState(false);
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
+  const { isOpen: isShopOpen } = useShopStatus();
 
   const playUpdateSound = useCallback(() => {
     const audio = new Audio("/cash-register.mp3");
@@ -102,6 +105,7 @@ export default function AdminDashboard() {
         prev !== data.manual_status ? data.manual_status : prev,
       );
       setIsLunchPaused(data.is_lunch_paused ?? false);
+      setIsPreOpening(data.is_pre_opening ?? false);
     } else if (!error) {
       const { data: newData } = await supabase
         .from("shop_settings")
@@ -201,6 +205,15 @@ export default function AdminDashboard() {
 
     const newStatus = nextStatus[manualStatus];
 
+    if (isPreOpening && newStatus === "open") {
+      toast.error("Encerre a pré-abertura antes de abrir a fila manualmente.");
+      return;
+    }
+    if (isLunchPaused && newStatus === "closed") {
+      toast.error("Encerre o horário de almoço antes de fechar a fila.");
+      return;
+    }
+
     try {
       const { data: current } = await supabase
         .from("shop_settings")
@@ -230,6 +243,16 @@ export default function AdminDashboard() {
   };
 
   const handleToggleLunchPause = async () => {
+    if (!isLunchPaused) {
+      if (isPreOpening) {
+        toast.error("Encerre a pré-abertura antes de ativar o horário de almoço.");
+        return;
+      }
+      if (manualStatus === "auto" && !isShopOpen) {
+        toast.error("A barbearia precisa estar aberta para ativar o horário de almoço.");
+        return;
+      }
+    }
     const newValue = !isLunchPaused;
     try {
       const { data: current } = await supabase
@@ -295,6 +318,85 @@ export default function AdminDashboard() {
       }
     } catch {
       toast.error("Falha ao atualizar modo almoço");
+    }
+  };
+
+  const handleTogglePreOpening = async () => {
+    if (!isPreOpening) {
+      if (manualStatus !== "auto") {
+        toast.error("A pré-abertura só pode ser ativada no modo automático.");
+        return;
+      }
+      if (isShopOpen) {
+        toast.error("A barbearia já está no horário de funcionamento.");
+        return;
+      }
+    }
+    const newValue = !isPreOpening;
+    try {
+      const { data: current } = await supabase
+        .from("shop_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      if (current) {
+        await supabase
+          .from("shop_settings")
+          .update({ is_pre_opening: newValue })
+          .eq("id", current.id);
+      } else {
+        await supabase
+          .from("shop_settings")
+          .insert([{ is_pre_opening: newValue }]);
+      }
+      setIsPreOpening(newValue);
+
+      const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
+      const servingCount = queue.filter((item) => item.status === "serving").length;
+
+      if (newValue) {
+        const toNotify = queue.filter(
+          (item) => item.status === "waiting" || item.status === "serving",
+        );
+        for (let i = 0; i < toNotify.length; i++) {
+          const item = toNotify[i];
+          const pos = servingCount + i + 1;
+          await webhookService.sendWebhook(
+            "PRE_OPENING_START",
+            item,
+            pos,
+            pos - 1,
+            currentBaseTime,
+            shopName,
+            webhookUrl,
+            trackingUrlBase,
+          );
+        }
+        const id = toast.success("Modo pré-abertura ativado");
+        setTimeout(() => toast.dismiss(id), 1800);
+      } else {
+        const waitingItems = queue
+          .filter((item) => item.status === "waiting")
+          .sort((a, b) => a.position - b.position);
+        for (let i = 0; i < waitingItems.length; i++) {
+          const item = waitingItems[i];
+          const pos = servingCount + i + 1;
+          await webhookService.sendWebhook(
+            "PRE_OPENING_END",
+            item,
+            pos,
+            pos - 1,
+            currentBaseTime,
+            shopName,
+            webhookUrl,
+            trackingUrlBase,
+          );
+        }
+        const id = toast.success("Pré-abertura encerrada");
+        setTimeout(() => toast.dismiss(id), 1800);
+      }
+    } catch {
+      toast.error("Falha ao atualizar modo pré-abertura");
     }
   };
 
@@ -542,6 +644,10 @@ export default function AdminDashboard() {
       toast.error("Desative o modo almoço antes de iniciar um atendimento.");
       return;
     }
+    if (isPreOpening) {
+      toast.error("Encerre a pré-abertura antes de iniciar um atendimento.");
+      return;
+    }
     if (processingId) return;
     setProcessingId(item.id);
     try {
@@ -734,6 +840,8 @@ if (loading) {
         onToggleManualStatus={handleToggleManualStatus}
         isLunchPaused={isLunchPaused}
         onToggleLunch={handleToggleLunchPause}
+        isPreOpening={isPreOpening}
+        onTogglePreOpening={handleTogglePreOpening}
         onNavigate={navigate}
         onLogout={handleLogout}
       />

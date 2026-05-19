@@ -26,7 +26,7 @@ export default function QueueStatus() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [guestCount, setGuestCount] = useState(0);
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
-  const { shopName, logoUrl, baseQueueTime, isLunchPaused } = useShopSettings();
+  const { shopName, logoUrl, baseQueueTime, isLunchPaused, isPreOpening } = useShopSettings();
 
   const [estimatedTimeStr, setEstimatedTimeStr] = useState("Agora");
 
@@ -256,6 +256,17 @@ export default function QueueStatus() {
                   </div>
                 </div>
               )}
+              {isPreOpening && (
+                <div className="flex items-start space-x-3 rounded-2xl bg-blue-900/20 p-4 text-blue-400 border border-blue-900/30">
+                  <Clock className="h-5 w-5 shrink-0 text-blue-400 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm">Barbeiro a caminho</p>
+                    <p className="text-sm opacity-90 mt-1">
+                      O horário estimado aparecerá assim que os atendimentos começarem.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div
                 className={`grid ${peopleAhead > 0 ? "grid-cols-2" : "grid-cols-1"} gap-4`}
               >
@@ -275,7 +286,7 @@ export default function QueueStatus() {
                       Horário Estimado
                     </p>
                     <p className="text-xl font-bold text-white mt-2">
-                      {estimatedTimeStr}
+                      {isPreOpening ? "Em breve" : estimatedTimeStr}
                     </p>
                   </div>
                 )}
