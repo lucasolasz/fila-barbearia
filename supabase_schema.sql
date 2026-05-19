@@ -90,25 +90,17 @@ create table IF NOT EXISTS public.shop_settings (
   )
 ) TABLESPACE pg_default;
 
--- 7. Campaigns Table
+-- 7. Campaigns Table (rascunhos e enviadas unificados via is_draft)
 create table IF NOT EXISTS public.campaigns (
   id uuid not null default gen_random_uuid (),
   title text not null,
   message text not null,
+  is_draft boolean not null default false,
+  selected_contact_ids text[] null default '{}'::text[],
   recipient_count integer not null default 0,
   created_at timestamp with time zone null default now(),
-  constraint campaigns_pkey primary key (id)
-) TABLESPACE pg_default;
-
--- 8. Campaign Drafts Table
-create table IF NOT EXISTS public.campaign_drafts (
-  id uuid not null default gen_random_uuid (),
-  title text not null,
-  message text not null,
-  selected_contact_ids text[] not null default '{}'::text[],
-  created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
-  constraint campaign_drafts_pkey primary key (id)
+  constraint campaigns_pkey primary key (id)
 ) TABLESPACE pg_default;
 
 -- Disable RLS for campaigns (admin-only access via service role)

@@ -72,6 +72,17 @@ export type QueueItem = {
   last_delay_sent_at?: string;
 };
 
+export type Campaign = {
+  id: string;
+  title: string;
+  message: string;
+  is_draft: boolean;
+  selected_contact_ids: string[];
+  recipient_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Service = {
   id: string;
   customer_id: string;
