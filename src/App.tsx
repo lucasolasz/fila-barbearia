@@ -10,7 +10,6 @@ import {
 import { supabase } from "./lib/supabase";
 import { getQueueId, clearQueueSession } from "./lib/storage";
 import Home from "./pages/Home";
-import Join from "./pages/Join";
 import QueueStatus from "./pages/QueueStatus";
 import InService from "./pages/InService";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -52,7 +51,7 @@ function SessionManager({ children }: { children: React.ReactNode }) {
       }
 
       if (data.status === "waiting") {
-        if (location.pathname !== "/queue" && location.pathname !== "/join") {
+        if (location.pathname !== "/queue") {
           navigate("/queue");
         }
       } else if (data.status === "serving") {
@@ -95,7 +94,6 @@ function AppContent() {
         <div className="min-h-screen font-sans transition-colors duration-300 bg-neutral-950 text-neutral-50">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/join" element={<Join />} />
             <Route path="/queue" element={<QueueStatus />} />
             <Route path="/in-service" element={<InService />} />
             <Route path="/admin" element={<AdminDashboard />} />
