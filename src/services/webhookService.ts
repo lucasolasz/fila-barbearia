@@ -1,5 +1,5 @@
 import { QueueItem } from "../lib/supabase";
-import { calculateEstimatedServiceTimeDynamic } from "../hooks/useQueue";
+import { calculateEstimatedMinutes, calculateEstimatedServiceTimeDynamic } from "../hooks/useQueue";
 
 export type WebhookEvent = "JOINED" | "NEAR" | "NEXT" | "UPDATE" | "DELAYED";
 
@@ -126,7 +126,7 @@ class WebhookService {
         phone = "55" + phone;
       }
 
-      const tempoEstimado = peopleAhead * baseTime; // Mantido para caso você ainda queira os minutos no n8n
+      const tempoEstimado = await calculateEstimatedMinutes(peopleAhead + 1);
       const estimatedWait = await calculateEstimatedServiceTimeDynamic(
         peopleAhead + 1,
       );

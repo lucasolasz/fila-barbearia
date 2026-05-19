@@ -23,6 +23,7 @@ export default function QueueStatus() {
   const [position, setPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [guestCount, setGuestCount] = useState(0);
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
   const { shopName, logoUrl, baseQueueTime } = useShopSettings();
 
@@ -97,7 +98,17 @@ export default function QueueStatus() {
       setQueueItem(data);
       calculatePosition(data.position);
       fetchSettings();
+      fetchGuestCount(data.id);
       setLoading(false);
+    }
+
+    async function fetchGuestCount(queueId: string) {
+      const { count } = await supabase
+        .from("queue")
+        .select("*", { count: "exact", head: true })
+        .eq("parent_queue_id", queueId)
+        .in("status", ["waiting", "serving"]);
+      setGuestCount(count || 0);
     }
 
     async function fetchSettings() {
@@ -149,13 +160,21 @@ export default function QueueStatus() {
     };
   }, [navigate]);
 
-  const handleLeave = async () => {
+  const handleLeave = async (withGuests = false) => {
     try {
       const queueId = getQueueId();
       await supabase
         .from("queue")
         .update({ status: "cancelled" })
         .eq("id", queueId);
+
+      if (withGuests) {
+        await supabase
+          .from("queue")
+          .update({ status: "cancelled" })
+          .eq("parent_queue_id", queueId)
+          .in("status", ["waiting", "serving"]);
+      }
 
       clearQueueSession();
       navigate("/");
@@ -362,23 +381,48 @@ export default function QueueStatus() {
               <h2 className="mb-2 text-xl font-bold text-white">
                 Sair da Fila?
               </h2>
-              <p className="mb-8 text-neutral-400">
+              <p className="mb-6 text-neutral-400">
                 Você perderá sua posição atual e precisará entrar novamente se
                 mudar de ideia.
               </p>
 
-              <div className="flex space-x-3">
+              {guestCount > 0 && (
+                <p className="mb-6 rounded-xl bg-amber-900/20 border border-amber-800/30 px-4 py-3 text-sm text-amber-400">
+                  Você tem <strong>{guestCount}</strong>{" "}
+                  {guestCount === 1 ? "convidado" : "convidados"} na fila.
+                  Deseja removê-{guestCount === 1 ? "lo" : "los"} também?
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {guestCount > 0 ? (
+                  <>
+                    <button
+                      onClick={() => handleLeave(false)}
+                      className="h-12 w-full rounded-xl bg-red-700/60 font-bold text-white hover:bg-red-700 transition-colors"
+                    >
+                      Somente eu
+                    </button>
+                    <button
+                      onClick={() => handleLeave(true)}
+                      className="h-12 w-full rounded-xl bg-red-600 font-bold text-white shadow-none hover:bg-red-700 transition-colors"
+                    >
+                      Eu e os convidados
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleLeave(false)}
+                    className="h-12 w-full rounded-xl bg-red-600 font-bold text-white shadow-none hover:bg-red-700 transition-colors"
+                  >
+                    Sair Agora
+                  </button>
+                )}
                 <button
                   onClick={() => setShowLeaveConfirm(false)}
-                  className="h-12 flex-1 rounded-xl bg-neutral-800 font-bold text-neutral-400 hover:bg-neutral-700"
+                  className="h-12 w-full rounded-xl bg-neutral-800 font-bold text-neutral-400 hover:bg-neutral-700 transition-colors"
                 >
                   Continuar na Fila
-                </button>
-                <button
-                  onClick={handleLeave}
-                  className="h-12 flex-1 rounded-xl bg-red-600 font-bold text-white shadow-none hover:bg-red-700"
-                >
-                  Sair Agora
                 </button>
               </div>
             </motion.div>

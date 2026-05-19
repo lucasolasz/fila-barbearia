@@ -2,6 +2,7 @@ import { Check, GripVertical, MessageCircle, Play, Trash2 } from "lucide-react";
 import { forwardRef } from "react";
 import { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 import { QueueItem } from "../../lib/supabase";
+import { BARBER_SERVICES } from "../../constants/constants";
 
 interface QueueItemCardProps {
   item: QueueItem;
@@ -62,13 +63,42 @@ const QueueItemCard = forwardRef<HTMLDivElement, QueueItemCardProps>(
             {item.code}
           </div>
           <div>
-            <h3 className="font-bold text-white">{item.customer?.name}</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold text-white">{item.customer?.name}</h3>
+              {item.parent_queue_id && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-fuchsia-300 ring-1 ring-fuchsia-500/60 bg-fuchsia-950/60 shadow-[0_0_6px_rgba(217,70,239,0.5)]">
+                  convidado
+                </span>
+              )}
+            </div>
             {item.customer?.phone &&
               !item.customer.phone.startsWith("manual_") && (
                 <p className="text-xs text-neutral-500">
                   {item.customer.phone}
                 </p>
               )}
+            {item.selected_services && item.selected_services.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {item.selected_services.map((svcId) => {
+                  const svc = BARBER_SERVICES.find((s) => s.id === svcId);
+                  const colorMap: Record<string, string> = {
+                    cabelo:      "bg-sky-900/60 text-sky-300 ring-sky-700/60",
+                    barba:       "bg-emerald-900/60 text-emerald-300 ring-emerald-700/60",
+                    pezinho:     "bg-amber-900/60 text-amber-300 ring-amber-700/60",
+                    sobrancelha: "bg-violet-900/60 text-violet-300 ring-violet-700/60",
+                  };
+                  const color = colorMap[svcId] ?? "bg-neutral-800 text-neutral-300 ring-neutral-700";
+                  return svc ? (
+                    <span
+                      key={svcId}
+                      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ${color}`}
+                    >
+                      {svc.label}
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            )}
             <p className="text-xs text-neutral-600 mt-0.5">
               {new Date(item.created_at).toLocaleString("pt-BR", {
                 day: "2-digit",

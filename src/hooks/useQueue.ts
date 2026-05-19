@@ -114,10 +114,10 @@ export function useShopStatus() {
   return { isOpen, message, loading };
 }
 
-function roundToNearest15(date: Date): Date {
+function roundToNearest5(date: Date): Date {
   const d = new Date(date);
   const minutes = d.getMinutes();
-  const rounded = Math.round(minutes / 15) * 15;
+  const rounded = Math.round(minutes / 5) * 5;
   if (rounded >= 60) {
     d.setHours(d.getHours() + 1);
     d.setMinutes(rounded - 60);
@@ -129,33 +129,17 @@ function roundToNearest15(date: Date): Date {
   return d;
 }
 
-export function calculateEstimatedServiceTime(posicaoNaFila: number): string {
+export function calculateEstimatedServiceTime(
+  posicaoNaFila: number,
+  avgDuration = 37,
+): string {
   if (posicaoNaFila <= 1) return "Agora";
 
-  // ⏱ intervalo real do serviço
-  const tempoMin = 25;
-  const tempoMax = 40;
-
   const pessoasNaFrente = posicaoNaFila - 1;
-
-  const minimo = pessoasNaFrente * tempoMin;
-  const maximo = pessoasNaFrente * tempoMax;
-
+  const totalMinutes = pessoasNaFrente * avgDuration;
   const now = new Date();
-
-  let minTime = addMinutes(now, minimo);
-  let maxTime = addMinutes(now, maximo);
-
-  // 👉 arredondamento correto
-  minTime = roundToNearest15(minTime);
-
-  maxTime = roundToNearest15(maxTime);
-
-  if (maxTime.getTime() <= minTime.getTime()) {
-    maxTime = new Date(minTime.getTime() + 15 * 60000);
-  }
-
-  return `${format(minTime, "HH:mm")} e ${format(maxTime, "HH:mm")}`;
+  const rawTime = addMinutes(now, totalMinutes);
+  return format(roundToNearest5(rawTime), "HH:mm");
 }
 
 export async function calculateEstimatedServiceTimeDynamic(
@@ -164,46 +148,47 @@ export async function calculateEstimatedServiceTimeDynamic(
   const now = new Date();
 
   try {
-    const { data: serving } = await supabase
+    const { data: activeEntries } = await supabase
       .from("queue")
-      .select("service_start")
-      .eq("status", "serving")
-      .limit(1)
-      .maybeSingle();
+      .select("position, status, service_start, service_duration")
+      .in("status", ["waiting", "serving"])
+      .order("position", { ascending: true });
 
-    const servingCount = serving ? 1 : 0;
+    if (!activeEntries || activeEntries.length === 0) return "Agora";
 
-    if (!serving && posicaoNaFila <= 1) {
-      return "Agora";
-    }
+    const servingEntry = activeEntries.find((e) => e.status === "serving");
+    const servingCount = servingEntry ? 1 : 0;
 
+    if (!servingEntry && posicaoNaFila <= 1) return "Agora";
     if (posicaoNaFila <= 0) return "Agora";
 
-    const avg = 37;
-
     let baseStart: Date;
-    if (serving?.service_start) {
-      const started = new Date(serving.service_start);
-      const projectedEnd = addMinutes(started, avg);
+
+    if (servingEntry?.service_start) {
+      const duration = servingEntry.service_duration ?? 30;
+      const started = new Date(servingEntry.service_start);
+      const projectedEnd = addMinutes(started, duration);
       if (projectedEnd.getTime() > now.getTime()) {
         baseStart = projectedEnd;
-      } else if (posicaoNaFila <= servingCount + 1) {
-        baseStart = addMinutes(now, 10);
       } else {
-        baseStart = addMinutes(now, avg);
+        baseStart = addMinutes(now, 10);
       }
     } else {
       baseStart = now;
     }
 
-    const waitingAhead = Math.max(0, posicaoNaFila - 1 - servingCount);
-    const shiftByMinutes = waitingAhead * avg;
+    const waitingEntries = activeEntries.filter((e) => e.status === "waiting");
+    const waitingAheadEntries = waitingEntries.slice(
+      0,
+      Math.max(0, posicaoNaFila - 1 - servingCount),
+    );
+    const shiftByMinutes = waitingAheadEntries.reduce(
+      (sum, e) => sum + (e.service_duration ?? 30),
+      0,
+    );
+
     const rawStart = addMinutes(baseStart, shiftByMinutes);
-
-    const startTime = roundToNearest15(rawStart);
-    const endTime = addMinutes(startTime, 15);
-
-    return `${format(startTime, "HH:mm")} e ${format(endTime, "HH:mm")}`;
+    return format(roundToNearest5(rawStart), "HH:mm");
   } catch (error) {
     console.error("Error calculating dynamic ETA:", error);
     return calculateEstimatedServiceTime(posicaoNaFila);
@@ -216,40 +201,48 @@ export async function calculateEstimatedMinutes(
   if (posicaoNaFila <= 0) return 0;
 
   try {
-    const { data: serving } = await supabase
+    const { data: activeEntries } = await supabase
       .from("queue")
-      .select("service_start")
-      .eq("status", "serving")
-      .limit(1)
-      .maybeSingle();
+      .select("position, status, service_start, service_duration")
+      .in("status", ["waiting", "serving"])
+      .order("position", { ascending: true });
 
-    const servingCount = serving ? 1 : 0;
+    if (!activeEntries) return 0;
 
-    if (!serving && posicaoNaFila <= 1) return 0;
+    const servingEntry = activeEntries.find((e) => e.status === "serving");
+    const servingCount = servingEntry ? 1 : 0;
 
-    const avg = 37;
+    if (!servingEntry && posicaoNaFila <= 1) return 0;
 
     const now = new Date();
-
     let remainingCurrent = 0;
-    if (serving && serving.service_start) {
-      const started = new Date(serving.service_start);
+
+    if (servingEntry?.service_start) {
+      const duration = servingEntry.service_duration ?? 30;
+      const started = new Date(servingEntry.service_start);
       const elapsed = Math.max(
         0,
         Math.round((now.getTime() - started.getTime()) / 60000),
       );
-      remainingCurrent = avg - elapsed > 0 ? avg - elapsed : avg;
-    } else if (serving) {
-      remainingCurrent = avg;
+      remainingCurrent = duration - elapsed > 0 ? duration - elapsed : 10;
+    } else if (servingEntry) {
+      remainingCurrent = servingEntry.service_duration ?? 30;
     }
 
-    const pessoasNaFrente = Math.max(0, posicaoNaFila - 1 - servingCount);
-    const totalMin = remainingCurrent + pessoasNaFrente * avg;
-    return Math.max(0, Math.round(totalMin));
+    const waitingEntries = activeEntries.filter((e) => e.status === "waiting");
+    const waitingAheadEntries = waitingEntries.slice(
+      0,
+      Math.max(0, posicaoNaFila - 1 - servingCount),
+    );
+    const waitingMinutes = waitingAheadEntries.reduce(
+      (sum, e) => sum + (e.service_duration ?? 30),
+      0,
+    );
+
+    return Math.max(0, Math.round(remainingCurrent + waitingMinutes));
   } catch (error) {
     console.error("Error calculating dynamic ETA minutes:", error);
-    const pessoasNaFrente = posicaoNaFila - 1;
-    return Math.max(0, pessoasNaFrente * 37);
+    return Math.max(0, (posicaoNaFila - 1) * 37);
   }
 }
 

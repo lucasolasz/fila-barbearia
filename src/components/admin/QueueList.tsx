@@ -103,8 +103,15 @@ export default function QueueList({
                     item.status === "serving"
                       ? 1
                       : servingCount + waitingIndex + 1;
-                  const estimatedTime =
-                    calculateEstimatedServiceTime(position);
+                  const avgDuration =
+                    localQueue.reduce(
+                      (sum, i) => sum + (i.service_duration ?? 37),
+                      0,
+                    ) / (localQueue.length || 1);
+                  const estimatedTime = calculateEstimatedServiceTime(
+                    position,
+                    Math.round(avgDuration),
+                  );
 
                   return (
                     <Draggable
