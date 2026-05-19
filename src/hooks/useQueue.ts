@@ -165,15 +165,13 @@ export async function calculateEstimatedServiceTimeDynamic(
     let baseStart: Date;
 
     if (servingEntry?.service_start) {
-      const duration = servingEntry.service_duration ?? 37;
+      const duration = servingEntry.service_duration ?? 30;
       const started = new Date(servingEntry.service_start);
       const projectedEnd = addMinutes(started, duration);
       if (projectedEnd.getTime() > now.getTime()) {
         baseStart = projectedEnd;
-      } else if (posicaoNaFila <= servingCount + 1) {
-        baseStart = addMinutes(now, 10);
       } else {
-        baseStart = addMinutes(now, duration);
+        baseStart = addMinutes(now, 10);
       }
     } else {
       baseStart = now;
@@ -185,7 +183,7 @@ export async function calculateEstimatedServiceTimeDynamic(
       Math.max(0, posicaoNaFila - 1 - servingCount),
     );
     const shiftByMinutes = waitingAheadEntries.reduce(
-      (sum, e) => sum + (e.service_duration ?? 37),
+      (sum, e) => sum + (e.service_duration ?? 30),
       0,
     );
 
@@ -220,15 +218,15 @@ export async function calculateEstimatedMinutes(
     let remainingCurrent = 0;
 
     if (servingEntry?.service_start) {
-      const duration = servingEntry.service_duration ?? 37;
+      const duration = servingEntry.service_duration ?? 30;
       const started = new Date(servingEntry.service_start);
       const elapsed = Math.max(
         0,
         Math.round((now.getTime() - started.getTime()) / 60000),
       );
-      remainingCurrent = duration - elapsed > 0 ? duration - elapsed : duration;
+      remainingCurrent = duration - elapsed > 0 ? duration - elapsed : 10;
     } else if (servingEntry) {
-      remainingCurrent = servingEntry.service_duration ?? 37;
+      remainingCurrent = servingEntry.service_duration ?? 30;
     }
 
     const waitingEntries = activeEntries.filter((e) => e.status === "waiting");
@@ -237,7 +235,7 @@ export async function calculateEstimatedMinutes(
       Math.max(0, posicaoNaFila - 1 - servingCount),
     );
     const waitingMinutes = waitingAheadEntries.reduce(
-      (sum, e) => sum + (e.service_duration ?? 37),
+      (sum, e) => sum + (e.service_duration ?? 30),
       0,
     );
 

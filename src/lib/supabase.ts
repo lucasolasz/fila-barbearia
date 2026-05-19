@@ -69,6 +69,7 @@ export type QueueItem = {
   notified_next?: boolean;
   last_update_sent_at?: string;
   last_sent_eta?: number;
+  last_delay_sent_at?: string;
 };
 
 export type Service = {

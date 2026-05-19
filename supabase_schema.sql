@@ -125,3 +125,7 @@ ALTER TABLE IF EXISTS public.queue
 -- Add selected_services to store which services were chosen for each queue entry
 ALTER TABLE IF EXISTS public.queue
   ADD COLUMN IF NOT EXISTS selected_services TEXT[] DEFAULT '{}';
+
+-- Add delay webhook tracking field
+ALTER TABLE IF EXISTS public.queue
+  ADD COLUMN IF NOT EXISTS last_delay_sent_at TIMESTAMPTZ;
