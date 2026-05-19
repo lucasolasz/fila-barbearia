@@ -15,6 +15,7 @@ import { QueueItem, supabase } from "../lib/supabase";
 
 import { useShopSettings } from "../hooks/useShopSettings";
 import { FaInstagram } from "react-icons/fa";
+import { getQueueId, clearQueueSession } from "../lib/storage";
 
 export default function QueueStatus() {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function QueueStatus() {
     let isCurrentlyServing = false;
 
     async function fetchStatus() {
-      const queueId = localStorage.getItem("barber_queue_id");
+      const queueId = getQueueId();
 
       if (!queueId) {
         navigate("/");
@@ -71,8 +72,7 @@ export default function QueueStatus() {
       if (error || !data) {
         console.error("Error fetching queue status:", error);
         toast.error("Não foi possível encontrar seu lugar na fila.");
-        localStorage.removeItem("barber_queue_id");
-        localStorage.removeItem("barber_queue_code");
+        clearQueueSession();
         navigate("/");
         return;
       }
@@ -83,8 +83,7 @@ export default function QueueStatus() {
             ? "Seu atendimento foi finalizado!"
             : "Você saiu da fila.",
         );
-        localStorage.removeItem("barber_queue_id");
-        localStorage.removeItem("barber_queue_code");
+        clearQueueSession();
         navigate("/");
         return;
       }
@@ -152,14 +151,13 @@ export default function QueueStatus() {
 
   const handleLeave = async () => {
     try {
-      const queueId = localStorage.getItem("barber_queue_id");
+      const queueId = getQueueId();
       await supabase
         .from("queue")
         .update({ status: "cancelled" })
         .eq("id", queueId);
 
-      localStorage.removeItem("barber_queue_id");
-      localStorage.removeItem("barber_queue_code");
+      clearQueueSession();
       navigate("/");
     } catch (error) {
       console.error(error);

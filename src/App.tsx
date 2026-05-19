@@ -8,6 +8,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { supabase } from "./lib/supabase";
+import { getQueueId, clearQueueSession } from "./lib/storage";
 import Home from "./pages/Home";
 import Join from "./pages/Join";
 import QueueStatus from "./pages/QueueStatus";
@@ -28,7 +29,7 @@ function SessionManager({ children }: { children: React.ReactNode }) {
     if (location.pathname.startsWith("/admin")) return;
 
     async function checkSession() {
-      const queueId = localStorage.getItem("barber_queue_id");
+      const queueId = getQueueId();
       if (!queueId) return;
 
       const { data, error } = await supabase
@@ -42,8 +43,7 @@ function SessionManager({ children }: { children: React.ReactNode }) {
       }
 
       if (error || !data) {
-        localStorage.removeItem("barber_queue_id");
-        localStorage.removeItem("barber_queue_code");
+        clearQueueSession();
         if (location.pathname !== "/") {
           navigate("/");
         }
@@ -59,8 +59,7 @@ function SessionManager({ children }: { children: React.ReactNode }) {
           navigate("/in-service");
         }
       } else if (data.status === "completed" || data.status === "cancelled") {
-        localStorage.removeItem("barber_queue_id");
-        localStorage.removeItem("barber_queue_code");
+        clearQueueSession();
 
         if (
           location.pathname === "/queue" ||

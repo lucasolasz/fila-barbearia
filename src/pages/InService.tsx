@@ -6,13 +6,14 @@ import { motion } from "motion/react";
 import toast from "react-hot-toast";
 
 import { useShopSettings } from "../hooks/useShopSettings";
+import { getQueueId, clearQueueSession } from "../lib/storage";
 
 export default function InService() {
   const navigate = useNavigate();
   const [queueItem, setQueueItem] = useState<QueueItem | null>(null);
   const [loading, setLoading] = useState(true);
   const { shopName, logoUrl } = useShopSettings();
-  const queueId = localStorage.getItem("barber_queue_id");
+  const queueId = getQueueId();
 
   useEffect(() => {
     if (!queueId) {
@@ -59,8 +60,7 @@ export default function InService() {
     }
 
     const clearSession = () => {
-      localStorage.removeItem("barber_queue_id");
-      localStorage.removeItem("barber_queue_code");
+      clearQueueSession();
       navigate("/");
     };
 

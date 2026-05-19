@@ -25,6 +25,7 @@ import { supabase } from "../lib/supabase";
 import { DDD_OPTIONS } from "../constants/constants";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
+import { getQueueId, getQueueCode, setQueueSession, clearQueueSession } from "../lib/storage";
 
 export default function Home() {
   const [ddd, setDdd] = useState(() => {
@@ -65,8 +66,8 @@ export default function Home() {
   useEffect(() => {
     if (statusLoading) return;
 
-    const storedQueueId = localStorage.getItem("barber_queue_id");
-    const storedCode = localStorage.getItem("barber_queue_code");
+    const storedQueueId = getQueueId();
+    const storedCode = getQueueCode();
 
     if (!storedQueueId || !storedCode) return;
 
@@ -78,8 +79,7 @@ export default function Home() {
       .then(({ data, error }) => {
         if (error && error.code !== "PGRST116") return;
         if (!data) {
-          localStorage.removeItem("barber_queue_id");
-          localStorage.removeItem("barber_queue_code");
+          clearQueueSession();
           return;
         }
         if (data.status === "waiting" || data.status === "serving") {
@@ -138,8 +138,7 @@ export default function Home() {
         if (queueEntry) {
           toast.success("Você já está na fila!");
           localStorage.setItem("barber_customer_id", customerId);
-          localStorage.setItem("barber_queue_id", queueEntry.id);
-          localStorage.setItem("barber_queue_code", queueEntry.code);
+          setQueueSession(queueEntry.id, queueEntry.code);
           localStorage.setItem("barber_customer_phone", fullPhone);
           localStorage.setItem("barber_customer_name", name);
           navigate("/queue");
@@ -216,8 +215,7 @@ export default function Home() {
       if (!queueEntry) throw new Error("Falha ao confirmar entrada na fila.");
 
       localStorage.setItem("barber_customer_id", customerId);
-      localStorage.setItem("barber_queue_id", queueEntry.id);
-      localStorage.setItem("barber_queue_code", queueEntry.code);
+      setQueueSession(queueEntry.id, queueEntry.code);
       localStorage.setItem("barber_customer_phone", fullPhone);
       localStorage.setItem("barber_customer_name", name);
 
