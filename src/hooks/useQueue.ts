@@ -107,8 +107,19 @@ export function useShopStatus() {
     }
 
     checkStatus();
-    const interval = setInterval(checkStatus, 60000); // Check every minute
-    return () => clearInterval(interval);
+    const interval = setInterval(checkStatus, 60000);
+
+    const channel = supabase
+      .channel("shop_status_updates")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "shop_settings" }, () => checkStatus())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "barbershop_schedule" }, () => checkStatus())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "schedule_exceptions" }, () => checkStatus())
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return { isOpen, message, loading };
