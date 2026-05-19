@@ -40,6 +40,7 @@ export default function AdminDashboard() {
   const [manualStatus, setManualStatus] = useState<"auto" | "open" | "closed">(
     "auto",
   );
+  const [isLunchPaused, setIsLunchPaused] = useState(false);
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
 
@@ -100,6 +101,7 @@ export default function AdminDashboard() {
       setManualStatus((prev) =>
         prev !== data.manual_status ? data.manual_status : prev,
       );
+      setIsLunchPaused(data.is_lunch_paused ?? false);
     } else if (!error) {
       const { data: newData } = await supabase
         .from("shop_settings")
@@ -224,6 +226,75 @@ export default function AdminDashboard() {
       }, 1800);
     } catch (error) {
       toast.error("Falha ao atualizar status da fila");
+    }
+  };
+
+  const handleToggleLunchPause = async () => {
+    const newValue = !isLunchPaused;
+    try {
+      const { data: current } = await supabase
+        .from("shop_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      if (current) {
+        await supabase
+          .from("shop_settings")
+          .update({ is_lunch_paused: newValue })
+          .eq("id", current.id);
+      } else {
+        await supabase
+          .from("shop_settings")
+          .insert([{ is_lunch_paused: newValue }]);
+      }
+      setIsLunchPaused(newValue);
+
+      const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
+      const servingCount = queue.filter((item) => item.status === "serving").length;
+
+      if (newValue) {
+        const toNotify = queue.filter(
+          (item) => item.status === "waiting" || item.status === "serving",
+        );
+        for (let i = 0; i < toNotify.length; i++) {
+          const item = toNotify[i];
+          const pos = servingCount + i + 1;
+          await webhookService.sendWebhook(
+            "LUNCH_START",
+            item,
+            pos,
+            pos - 1,
+            currentBaseTime,
+            shopName,
+            webhookUrl,
+            trackingUrlBase,
+          );
+        }
+        const id = toast.success("Modo almoço ativado");
+        setTimeout(() => toast.dismiss(id), 1800);
+      } else {
+        const waitingItems = queue
+          .filter((item) => item.status === "waiting")
+          .sort((a, b) => a.position - b.position);
+        for (let i = 0; i < waitingItems.length; i++) {
+          const item = waitingItems[i];
+          const pos = servingCount + i + 1;
+          await webhookService.sendWebhook(
+            "LUNCH_END",
+            item,
+            pos,
+            pos - 1,
+            currentBaseTime,
+            shopName,
+            webhookUrl,
+            trackingUrlBase,
+          );
+        }
+        const id = toast.success("Retorno do almoço ativado");
+        setTimeout(() => toast.dismiss(id), 1800);
+      }
+    } catch {
+      toast.error("Falha ao atualizar modo almoço");
     }
   };
 
@@ -657,6 +728,8 @@ if (loading) {
         logoUrl={logoUrl ?? undefined}
         manualStatus={manualStatus}
         onToggleManualStatus={handleToggleManualStatus}
+        isLunchPaused={isLunchPaused}
+        onToggleLunch={handleToggleLunchPause}
         onNavigate={navigate}
         onLogout={handleLogout}
       />

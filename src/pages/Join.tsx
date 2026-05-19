@@ -29,7 +29,7 @@ export default function Join() {
   const [checking, setChecking] = useState(true);
 
   const queueCount = useQueueCount();
-  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
+  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime, isLunchPaused } =
     useShopSettings();
   const [maxQueueTime, setMaxQueueTime] = useState("19:00");
 
@@ -335,7 +335,9 @@ export default function Join() {
                   Horário Estimado
                 </p>
                 <p className="text-2xl font-black text-white">
-                  {estimatedTimeStr}
+                  {isLunchPaused && estimatedTimeStr === "Agora"
+                    ? "A confirmar"
+                    : estimatedTimeStr}
                 </p>
               </div>
             </div>

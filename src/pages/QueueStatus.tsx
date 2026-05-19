@@ -5,6 +5,7 @@ import {
   LogOut,
   MessageCircle,
   Users,
+  UtensilsCrossed,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -25,7 +26,7 @@ export default function QueueStatus() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [guestCount, setGuestCount] = useState(0);
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
-  const { shopName, logoUrl, baseQueueTime } = useShopSettings();
+  const { shopName, logoUrl, baseQueueTime, isLunchPaused } = useShopSettings();
 
   const [estimatedTimeStr, setEstimatedTimeStr] = useState("Agora");
 
@@ -237,6 +238,24 @@ export default function QueueStatus() {
             </div>
             {}
             <div className="p-8 space-y-5">
+              {isLunchPaused && (
+                <div className="flex items-start space-x-3 rounded-2xl bg-amber-900/20 p-4 text-amber-400 border border-amber-900/30">
+                  <UtensilsCrossed className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm">Pausa para almoço</p>
+                    <p className="text-sm opacity-90 mt-1">
+                      Estamos finalizando alguns atendimentos e em seguida
+                      entrarei no almoço. Barbearia estará fechada neste
+                      período. O horário estimado para seu atendimento será:{" "}
+                      <span className="font-bold">
+                        {estimatedTimeStr === "Agora"
+                          ? "a confirmar após o retorno"
+                          : estimatedTimeStr}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
               <div
                 className={`grid ${peopleAhead > 0 ? "grid-cols-2" : "grid-cols-1"} gap-4`}
               >

@@ -1,7 +1,7 @@
 import { QueueItem } from "../lib/supabase";
 import { calculateEstimatedMinutes, calculateEstimatedServiceTimeDynamic } from "../hooks/useQueue";
 
-export type WebhookEvent = "JOINED" | "NEAR" | "NEXT" | "UPDATE" | "DELAYED";
+export type WebhookEvent = "JOINED" | "NEAR" | "NEXT" | "UPDATE" | "DELAYED" | "LUNCH_START" | "LUNCH_END";
 
 export interface WebhookPayload {
   type: "QUEUE_UPDATE";

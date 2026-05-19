@@ -114,4 +114,5 @@ export type ShopSettings = {
   shop_name: string;
   logo_url: string | null;
   updated_at: string;
+  is_lunch_paused?: boolean;
 };

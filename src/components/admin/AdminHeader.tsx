@@ -1,10 +1,12 @@
-import { History, LogOut, Megaphone, Power, Scissors, Settings, Users } from "lucide-react";
+import { History, LogOut, Megaphone, Power, Scissors, Settings, Users, UtensilsCrossed } from "lucide-react";
 
 interface AdminHeaderProps {
   shopName: string;
   logoUrl?: string;
   manualStatus: "auto" | "open" | "closed";
   onToggleManualStatus: () => void;
+  isLunchPaused: boolean;
+  onToggleLunch: () => void;
   onNavigate: (path: string) => void;
   onLogout: () => void;
 }
@@ -14,6 +16,8 @@ export default function AdminHeader({
   logoUrl,
   manualStatus,
   onToggleManualStatus,
+  isLunchPaused,
+  onToggleLunch,
   onNavigate,
   onLogout,
 }: AdminHeaderProps) {
@@ -64,6 +68,20 @@ export default function AdminHeader({
                 : manualStatus === "open"
                   ? "Aberto"
                   : "Fechado"}
+            </span>
+          </button>
+          <button
+            onClick={onToggleLunch}
+            className={`flex items-center sm:space-x-2 rounded-xl px-4 py-3 text-sm font-bold transition-all ${
+              isLunchPaused
+                ? "bg-amber-900/30 text-amber-400"
+                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+            }`}
+            title={isLunchPaused ? "Sair do Almoço" : "Ativar Pausa para Almoço"}
+          >
+            <UtensilsCrossed className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {isLunchPaused ? "Em Almoço" : "Almoço"}
             </span>
           </button>
           <button

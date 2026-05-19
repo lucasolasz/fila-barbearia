@@ -74,7 +74,7 @@ export default function Home() {
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
-  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
+  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime, isLunchPaused } =
     useShopSettings();
   const [maxQueueTime, setMaxQueueTime] = useState("19:00");
 
@@ -378,6 +378,15 @@ export default function Home() {
             </p>
           </div>
         ) : (
+          <>
+            {isLunchPaused && (
+              <div className="rounded-2xl bg-amber-900/20 p-4 text-amber-400 border border-amber-900/30">
+                <p className="font-medium">Estamos em pausa para o almoço.</p>
+                <p className="mt-1 text-sm opacity-90">
+                  Você pode entrar na fila e será atendido ao retornarmos.
+                </p>
+              </div>
+            )}
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="space-y-6 text-left">
               <div className="pt-2">
@@ -489,7 +498,9 @@ export default function Home() {
                     Horário estimado
                   </p>
                   <p className="text-xl font-black text-white mt-2">
-                    {estimatedTimeStr}
+                    {isLunchPaused && estimatedTimeStr === "Agora"
+                      ? "A confirmar"
+                      : estimatedTimeStr}
                   </p>
                 </div>
               </div>
@@ -510,6 +521,7 @@ export default function Home() {
               )}
             </button>
           </form>
+          </>
         )}
 
         <div className="pt-8 text-xs text-neutral-400 uppercase tracking-widest">
