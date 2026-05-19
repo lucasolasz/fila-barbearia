@@ -11,21 +11,21 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 ### 1. Home (`/`) — Entrada na Fila
 
 - URL: `https://www.doncabellone.com.br`
-- Campos: **Nome** e **Telefone**
-- Informações exibidas abaixo dos campos: **posição estimada** e **horário estimado**
+- Campos: **Quantas pessoas vão cortar** (select 1–5, padrão 1), **Nome** e **Telefone**
+- Informações exibidas abaixo dos campos: **posição estimada** e **horário estimado** (formato `"HH:mm"`)
 - Botão: "Entrar na fila"
-- Ao clicar, abre um **dialog informativo** avisando que o horário estimado pode variar para mais ou para menos
-- Botão no dialog para **confirmar** e efetivamente entrar na fila
-- Ao confirmar, o sistema envia um webhook `JOINED` → fluxo n8n (`n8ndes.ltech.app.br`) → o cliente recebe uma **mensagem WhatsApp** informando que entrou na fila com sucesso
+- Ao clicar, abre um **dialog multi-step de seleção de serviços** — um passo por pessoa
+  - Cada passo exibe checkboxes: Cabelo (30min, padrão), Pezinho (10min), Barba (30min), Sobrancelha (5min)
+  - Botão "Próximo" avança entre passo; "Confirmar" no último submete
+- Ao confirmar, o sistema insere a entrada principal + entradas de convidados na fila, e envia webhook `JOINED`
 
 ### 2. Queue (`/queue`) — Status na Fila
 
 - Exibe: **código da fila**, **posição na fila**
-- Horário estimado de atendimento: exibido a partir da 3ª posição (quando há pessoas suficiente na frente para estimar)
+- Horário estimado de atendimento: formato `"HH:mm"` arredondado para múltiplo de 5 min
 - Botões: seguir no **Instagram**, chamar no **WhatsApp**
-- Informações adicionais
-- Botão: **sair da fila**
-- Enquanto o cliente está na fila, o sistema envia webhooks de acompanhamento via n8n, que disparam mensagens WhatsApp de atualização (NEXT, NEAR, UPDATE, DELAYED)
+- Botão: **sair da fila** — se o cliente tem convidados ativos (`parent_queue_id`), exibe diálogo com opções "Somente eu" e "Eu e os convidados"
+- Webhooks de acompanhamento via n8n: NEXT, NEAR, UPDATE, DELAYED
 
 ---
 
@@ -51,6 +51,8 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | `code` | Código de 4-5 caracteres (ex: "1CMI6") |
 | `position` | **ID sequencial acumulativo** (100, 101, 102...). Usado para ordenação no banco. NÃO é a posição real na fila. |
 | `status` | "waiting", "serving", "completed", "cancelled" |
+| `service_duration` | **Duração total dos serviços selecionados em minutos** (ex: Cabelo+Barba = 60). Usado em cálculo de ETA. |
+| `parent_queue_id` | **FK → queue(id)**. Liga entradas de convidados ao responsável. NULL para clientes normais. |
 | `created_at` | Data de entrada na fila |
 | `service_start` | Timestamp início do atendimento |
 | `service_end` | Timestamp fim do atendimento |
@@ -187,22 +189,26 @@ Quando o admin adiciona um cliente manualmente via `AddCustomerForm`, o webhook 
 
 ---
 
-## Tempo Estimado de Serviço — Fixo em 37 minutos
+## Tempo Estimado de Serviço — Dinâmico por `service_duration`
 
-**Decisão**: O tempo médio de serviço é **fixo em 37 minutos**. Não é mais calculado dinamicamente a partir do histórico de `services`.
-
-Isso simplifica cálculos e garante previsibilidade. As funções afetadas:
+O ETA é calculado somando o campo `service_duration` real de cada entrada na fila (não mais média fixa).
 
 | Função | Comportamento |
 |--------|--------------|
-| `calculateEstimatedServiceTimeDynamic()` | Usa `avg = 37`. Não consulta mais a tabela `services` |
-| `calculateEstimatedMinutes()` | Usa `avg = 37`. Não consulta mais a tabela `services` |
-| `useAverageServiceTime()` | Retorna `37` fixo. Não consulta mais a tabela `services` |
-| `calculateEstimatedServiceTime()` | Fallback estático com intervalo 25-40min por pessoa |
+| `calculateEstimatedServiceTimeDynamic(pos)` | Busca todas as entradas ativas com `service_duration`. Soma as durações das entradas à frente. Retorna `"HH:mm"` (string única). |
+| `calculateEstimatedMinutes(pos)` | Mesma lógica; retorna minutos numéricos (para webhook `etaMinutes`). |
+| `calculateEstimatedServiceTime(pos, avgDuration?)` | Fallback estático síncrono; aceita `avgDuration` opcional (default 37). Retorna `"HH:mm"`. |
+| `useAverageServiceTime()` | Retorna `37` — usado apenas como fallback quando `service_duration` não está disponível. |
+
+**Fallback**: quando `service_duration` é `null` (entradas antigas antes da migration), assume 37min.
 
 ### Arredondamento do Horário Estimado
 
-O horário estimado é arredondado para o **múltiplo de 15 minutos mais próximo** (não mais pra cima). Exemplo: 9:47 → 9:45 (antes era 10:00).
+O horário estimado é arredondado para o **múltiplo de 5 minutos mais próximo**. Exemplo: 9:47 → 9:45.
+
+### Formato do ETA
+
+Retorna string única `"HH:mm"` — não mais o intervalo `"HH:mm e HH:mm"`.
 
 ---
 
@@ -217,6 +223,54 @@ const shiftByMinutes = waitingAhead * avg;
 ```
 
 Para posição 1 (próximo a ser atendido), o ETA considera apenas o tempo restante do atendimento atual, não soma um tempo completo extra.
+
+---
+
+## Convidados (Múltiplas Pessoas na Fila)
+
+### Padrão de criação
+- Responsável preenche nome/telefone + seleciona quantidade (1–5)
+- Ao confirmar os serviços, o sistema cria:
+  - 1 entrada normal para o responsável
+  - N entradas de convidados com `parent_queue_id = queueEntry.id`
+
+### Identificação do convidado
+| Campo | Valor |
+|---|---|
+| `customers.phone` | `manual_${Date.now()}_${i}` — prefixo `manual_` |
+| `customers.name` | `"Convidado de ${nome}"` |
+| `queue.parent_queue_id` | ID da entrada do responsável |
+| `queue.service_duration` | Calculado a partir dos serviços selecionados para aquele convidado |
+
+### Comportamento na dashboard (QueueItemCard)
+O prefixo `manual_` na phone já aciona comportamento existente:
+- Oculta número de telefone
+- Oculta botão WhatsApp
+- Mantém botões "Iniciar atendimento" e "Excluir"
+
+### Saída da fila com convidados (QueueStatus)
+- Ao montar, consulta `queue WHERE parent_queue_id = queueId AND status IN ('waiting','serving')`
+- Se houver convidados: diálogo com "Somente eu" / "Eu e os convidados"
+- **Sem localStorage** — relação inteiramente via banco
+
+### Webhooks e convidados
+- Webhook `JOINED` enviado apenas para o responsável
+- Convidados com `manual_` são filtrados automaticamente em todos os webhooks
+
+---
+
+## Serviços Disponíveis
+
+Definidos em `src/constants/constants.ts → BARBER_SERVICES`:
+
+| id | label | duration |
+|---|---|---|
+| cabelo | Cabelo | 30 min |
+| pezinho | Pezinho | 10 min |
+| barba | Barba | 30 min |
+| sobrancelha | Sobrancelha | 5 min |
+
+`ServiceId = "cabelo" | "pezinho" | "barba" | "sobrancelha"`
 
 ---
 
@@ -260,16 +314,18 @@ Para cada item na fila, o card exibe:
 
 ## Decisões de Desenvolvimento
 
-1. **Webhook position**: Alterado de ID sequencial para posição real (`queueCount + 1` em Home/Join, `servingCount + waitingIndex + 1` no AdminDashboard)
-2. **AddCustomerForm webhook bug corrigido**: Envia `queueCount + 1` em vez de `nextPos` (ID sequencial do banco)
+1. **Webhook position**: Usar `queueCount + 1` / `queueCount` (rank ativo), nunca `nextPosition` (sequência DB)
+2. **AddCustomerForm webhook**: Envia `queueCount + 1` em vez de `nextPos` (ID sequencial do banco)
 3. **Reset de notificações**: Removido reset automático que causava re-envio indevido ao abrir dashboard
-4. **Position no banco**: Mantido para ordenação e eficiência
+4. **Position no banco**: Mantido para ordenação e eficiência; posição real sempre calculada em runtime
 5. **Contagem inclui "serving"**: `useQueueCount()` conta `["waiting", "serving"]`, não apenas `"waiting"`
-6. **Tempo de serviço fixo**: 37 minutos, sem consulta à tabela `services`
-7. **Arredondamento de horário**: Múltiplo de 15min mais próximo (não sempre pra cima)
-8. **ETA não duplica serving**: Tempo restante do atendimento atual é separado de `waitingAhead`
-9. **NEXT trigger**: Dispara quando `position === servingCount + 1` (topo da fila de espera)
-10. **Schema**: Todas as tabelas documentadas conforme supabase_schema.sql
+6. **Tempo de serviço dinâmico**: calculado a partir de `queue.service_duration` por entrada (fallback: 37min)
+7. **Arredondamento de horário**: Múltiplo de **5min** mais próximo (função `roundToNearest5`)
+8. **ETA formato único**: Retorna `"HH:mm"` — não mais o intervalo `"HH:mm e HH:mm"`
+9. **ETA não duplica serving**: Tempo restante do atendimento atual é separado de `waitingAhead`
+10. **NEXT trigger**: Dispara quando `position === servingCount + 1` (topo da fila de espera)
+11. **Convidados via parent_queue_id**: Relação no banco, sem localStorage adicional
+12. **Schema**: Todas as tabelas documentadas em `supabase_schema.sql` — manter sincronizado
 
 ---
 
@@ -278,23 +334,24 @@ Para cada item na fila, o card exibe:
 ```
 src/
 ├── lib/
-│   └── supabase.ts          # Cliente Supabase e tipos (Customer, QueueItem, Service, Schedule, ScheduleException, ShopSettings)
+│   ├── supabase.ts          # Cliente Supabase e tipos (Customer, QueueItem, Service, Schedule, ScheduleException, ShopSettings)
+│   └── storage.ts           # getQueueId(), setQueueSession(), clearQueueSession() — usa localStorage + cookies (8h)
 ├── hooks/
 │   ├── useQueue.ts         # Hooks de fila (contagem, tempo estimado, status da loja)
 │   └── useShopSettings.tsx # Configurações da loja (theme, shopName, logoUrl, etc)
 ├── services/
 │   └── webhookService.ts   # Serviço de webhooks (JOINED, NEAR, NEXT, UPDATE, DELAYED)
 ├── pages/
-│   ├── Home.tsx            # Entrar na fila
+│   ├── Home.tsx            # Entrar na fila (dialog multi-step, múltiplas pessoas)
 │   ├── Join.tsx            # Entrar via código (alternativo)
-│   ├── QueueStatus.tsx     # Ver status na fila
+│   ├── QueueStatus.tsx     # Ver status na fila (saída com opção de remover convidados)
 │   ├── InService.tsx       # Tela quando cliente está em atendimento
 │   ├── AdminDashboard.tsx  # Painel admin (fila, notificações, controle)
 │   ├── AdminSettings.tsx   # Configurações da barbearia
 │   ├── AdminHistory.tsx    # Histórico de atendimentos
 │   └── AdminCampaigns.tsx  # Campanhas de WhatsApp
 └── constants/
-    └── constants.ts        # DDDs, weekdays
+    └── constants.ts        # DDDs, weekdays, BARBER_SERVICES, ServiceId
 ```
 
 ---
@@ -312,7 +369,7 @@ O AdminCampaigns envia campanhas para um webhook fixo:
 
 ```typescript
 Customer { id, name, phone, created_at }
-QueueItem { id, code, customer_id, position, status, created_at, service_start, service_end, customer?, notified_near?, notified_next?, last_update_sent_at?, last_sent_eta?, last_delay_sent_at? }
+QueueItem { id, code, customer_id, position, status, created_at, service_start?, service_end?, customer?, service_duration?, parent_queue_id?, notified_near?, notified_next?, last_update_sent_at?, last_sent_eta?, last_delay_sent_at? }
 Service { id, customer_id, duration_minutes, created_at }
 Schedule { id, weekday, open_time, close_time, is_closed }
 ScheduleException { id, date, open_time, close_time, is_closed }
