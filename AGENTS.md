@@ -141,7 +141,7 @@ O sistema envia webhooks POST para uma URL configurada em `shop_settings.webhook
 
 | Evento | Quando é enviado | Condições | Cooldown | Flag no banco |
 |--------|-----------------|-----------|----------|---------------|
-| `JOINED` | Cliente entra na fila | Imediato ao entrar (Home, Join, AddCustomerForm). **Não** é enviado se o telefone começa com `manual_` (cadastro admin sem telefone real) | Sem cooldown | Nenhuma |
+| `JOINED` | Cliente entra na fila | Imediato ao entrar (Home, AddCustomerForm). **Não** é enviado se o telefone começa com `manual_` (cadastro admin sem telefone real) | Sem cooldown | Nenhuma |
 | `NEXT` | Cliente chega ao topo da fila de espera | `position === servingCount + 1` E `lastPos > servingCount + 1` (moveu de posição mais alta) E `notified_next === false` | One-time (flag) | `notified_next: true` |
 | `NEAR` | Cliente está próximo (`position <= 3`) | `position <= 3` E `lastPos > 3` (cruzou a barreira das 3 posições) E `notified_near === false` | One-time (flag) | `notified_near: true` |
 | `UPDATE` | Posição mudou e ETA mudou significativamente | Posição mudou E `\|ETA_novo - ETA_antigo\| >= 10min` E cooldown de 5min desde último UPDATE. Se `last_sent_eta === null`, dispara imediatamente | 5 min | `last_update_sent_at`, `last_sent_eta` |
@@ -284,7 +284,7 @@ O campo `position` no banco é usado para:
 **A posição real na fila é sempre calculada em runtime**, nunca lida diretamente do campo `position` do banco.
 
 Cálculo da posição real:
-- Na Home/Join: `queueCount + 1` (onde `queueCount` inclui "waiting" e "serving")
+- Na Home: `queueCount + 1` (onde `queueCount` inclui "waiting" e "serving")
 - No QueueStatus: contagem de itens com status "waiting" ou "serving" e `position < currentPosition`, +1
 - No AdminDashboard: `servingCount + waitingIndex + 1`
 
@@ -343,7 +343,6 @@ src/
 │   └── webhookService.ts   # Serviço de webhooks (JOINED, NEAR, NEXT, UPDATE, DELAYED)
 ├── pages/
 │   ├── Home.tsx            # Entrar na fila (dialog multi-step, múltiplas pessoas)
-│   ├── Join.tsx            # Entrar via código (alternativo)
 │   ├── QueueStatus.tsx     # Ver status na fila (saída com opção de remover convidados)
 │   ├── InService.tsx       # Tela quando cliente está em atendimento
 │   ├── AdminDashboard.tsx  # Painel admin (fila, notificações, controle)
