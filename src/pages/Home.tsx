@@ -1,7 +1,7 @@
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowRight,
+  Check,
   CircleAlert,
   Clock,
   Loader2,
@@ -22,10 +22,36 @@ import {
 } from "../hooks/useQueue";
 import { supabase } from "../lib/supabase";
 
-import { DDD_OPTIONS } from "../constants/constants";
+import { BARBER_SERVICES, DDD_OPTIONS, ServiceId } from "../constants/constants";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
 import { getQueueId, getQueueCode, setQueueSession, clearQueueSession } from "../lib/storage";
+
+function generateCode(): string {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const numbers = "0123456789";
+  const allChars = letters + numbers;
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+  if (!/\d/.test(code)) {
+    code += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  } else {
+    code += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+  return code
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .join("");
+}
+
+function calculatePersonDuration(services: ServiceId[]): number {
+  return services.reduce((sum, id) => {
+    const svc = BARBER_SERVICES.find((s) => s.id === id);
+    return sum + (svc?.duration ?? 0);
+  }, 0);
+}
 
 export default function Home() {
   const [ddd, setDdd] = useState(() => {
@@ -41,8 +67,10 @@ export default function Home() {
   const [name, setName] = useState(() => {
     return localStorage.getItem("barber_customer_name") || "";
   });
+  const [numberOfPeople, setNumberOfPeople] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [dialogStep, setDialogStep] = useState<number | null>(null);
+  const [servicesPerPerson, setServicesPerPerson] = useState<ServiceId[][]>([]);
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
@@ -88,11 +116,6 @@ export default function Home() {
       });
   }, [statusLoading, navigate]);
 
-  const handleConfirmJoin = () => {
-    setShowConfirmDialog(false);
-    handleJoinSubmit();
-  };
-
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (phone.length !== 9 || !phone.startsWith("9")) {
@@ -105,16 +128,42 @@ export default function Home() {
       toast.error("Por favor, insira seu nome");
       return;
     }
-    setShowConfirmDialog(true);
+    const initial: ServiceId[][] = Array.from({ length: numberOfPeople }, () => [
+      "cabelo",
+    ]);
+    setServicesPerPerson(initial);
+    setDialogStep(0);
+  };
+
+  const handleDialogNext = () => {
+    if (dialogStep === null) return;
+    if (dialogStep < numberOfPeople - 1) {
+      setDialogStep(dialogStep + 1);
+    } else {
+      setDialogStep(null);
+      handleJoinSubmit();
+    }
+  };
+
+  const toggleService = (personIndex: number, serviceId: ServiceId) => {
+    setServicesPerPerson((prev) => {
+      const updated = prev.map((s) => [...s]);
+      const idx = updated[personIndex].indexOf(serviceId);
+      if (idx >= 0) {
+        updated[personIndex].splice(idx, 1);
+      } else {
+        updated[personIndex].push(serviceId);
+      }
+      return updated;
+    });
   };
 
   const handleJoinSubmit = async () => {
-
     setLoading(true);
     const fullPhone = `${ddd}${phone}`;
 
     try {
-      let customerId;
+      let customerId: string;
       const { data: existingCustomer, error: fetchError } = await supabase
         .from("customers")
         .select("id, name")
@@ -128,17 +177,17 @@ export default function Home() {
       if (existingCustomer) {
         customerId = existingCustomer.id;
 
-        const { data: queueEntry } = await supabase
+        const { data: activeEntry } = await supabase
           .from("queue")
           .select("*")
           .eq("customer_id", customerId)
           .in("status", ["waiting", "serving"])
           .maybeSingle();
 
-        if (queueEntry) {
+        if (activeEntry) {
           toast.success("Você já está na fila!");
           localStorage.setItem("barber_customer_id", customerId);
-          setQueueSession(queueEntry.id, queueEntry.code);
+          setQueueSession(activeEntry.id, activeEntry.code);
           localStorage.setItem("barber_customer_phone", fullPhone);
           localStorage.setItem("barber_customer_name", name);
           navigate("/queue");
@@ -165,7 +214,7 @@ export default function Home() {
 
       const { data: lastEntry, error: lastEntryError } = await supabase
         .from("queue")
-        .select("position, code")
+        .select("position")
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -174,38 +223,18 @@ export default function Home() {
 
       const nextPosition = (lastEntry?.position || 0) + 1;
 
-      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      const numbers = "0123456789";
-      const allChars = letters + numbers;
-      let nextCode = "";
-
-      for (let i = 0; i < 4; i++) {
-        nextCode += allChars.charAt(
-          Math.floor(Math.random() * allChars.length),
-        );
-      }
-
-      if (!/\d/.test(nextCode)) {
-        nextCode += numbers.charAt(Math.floor(Math.random() * numbers.length));
-      } else {
-        nextCode += allChars.charAt(
-          Math.floor(Math.random() * allChars.length),
-        );
-      }
-
-      nextCode = nextCode
-        .split("")
-        .sort(() => Math.random() - 0.5)
-        .join("");
+      const mainServices = servicesPerPerson[0] ?? (["cabelo"] as ServiceId[]);
+      const mainDuration = calculatePersonDuration(mainServices) || 30;
 
       const { data: queueEntry, error: queueError } = await supabase
         .from("queue")
         .insert([
           {
             customer_id: customerId,
-            code: nextCode,
+            code: generateCode(),
             position: nextPosition,
             status: "waiting",
+            service_duration: mainDuration,
           },
         ])
         .select("*, customer:customer_id(*)")
@@ -213,6 +242,33 @@ export default function Home() {
 
       if (queueError) throw queueError;
       if (!queueEntry) throw new Error("Falha ao confirmar entrada na fila.");
+
+      for (let i = 1; i < numberOfPeople; i++) {
+        const guestPhone = `manual_${Date.now()}_${i}`;
+        const guestName = `Convidado de ${name.trim()}`;
+
+        const { data: guestCustomer, error: guestErr } = await supabase
+          .from("customers")
+          .insert([{ name: guestName, phone: guestPhone }])
+          .select()
+          .single();
+        if (guestErr) throw guestErr;
+
+        const guestServices =
+          servicesPerPerson[i] ?? (["cabelo"] as ServiceId[]);
+        const guestDuration = calculatePersonDuration(guestServices) || 30;
+
+        const { error: guestQueueErr } = await supabase.from("queue").insert([
+          {
+            customer_id: guestCustomer.id,
+            code: generateCode(),
+            position: nextPosition + i,
+            status: "waiting",
+            service_duration: guestDuration,
+          },
+        ]);
+        if (guestQueueErr) throw guestQueueErr;
+      }
 
       localStorage.setItem("barber_customer_id", customerId);
       setQueueSession(queueEntry.id, queueEntry.code);
@@ -222,9 +278,9 @@ export default function Home() {
       webhookService.sendWebhook(
         "JOINED",
         queueEntry,
-        queueCount + 1,
-        queueCount,
-        baseQueueTime == null ? 30 : baseQueueTime,
+        nextPosition,
+        nextPosition - 1,
+        mainDuration,
         shopName,
         webhookUrl,
         trackingUrlBase,
@@ -322,6 +378,22 @@ export default function Home() {
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="space-y-6 text-left">
               <div className="pt-2">
+                <label className="mb-2 block text-sm font-semibold text-neutral-300">
+                  Quantas pessoas vão cortar?
+                </label>
+                <select
+                  value={numberOfPeople}
+                  onChange={(e) => setNumberOfPeople(Number(e.target.value))}
+                  className="h-14 w-full appearance-none rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+                >
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n} {n === 1 ? "pessoa" : "pessoas"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="mb-2 block text-sm font-semibold text-neutral-300">
                   Seu Nome
                 </label>
@@ -442,14 +514,14 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {showConfirmDialog && (
+      {dialogStep !== null && servicesPerPerson[dialogStep] !== undefined && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowConfirmDialog(false)}
+          onClick={() => setDialogStep(null)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setShowConfirmDialog(false);
+            if (e.key === "Escape") setDialogStep(null);
           }}
           tabIndex={-1}
           autoFocus
@@ -460,29 +532,98 @@ export default function Home() {
             className="w-full max-w-sm rounded-2xl bg-neutral-900 p-6 border border-neutral-800"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-900/30">
-              <AlertTriangle className="w-6 h-6 text-yellow-400" />
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-xs text-neutral-500">
+                {dialogStep + 1} de {numberOfPeople}
+              </p>
+              <button
+                type="button"
+                onClick={() => setDialogStep(null)}
+                className="text-neutral-500 hover:text-neutral-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-white text-center">
-              Atenção
+
+            <h3 className="mb-1 text-lg font-semibold text-white">
+              Serviços para:{" "}
+              <span className="text-emerald-400">
+                {dialogStep === 0 ? name : `Convidado ${dialogStep}`}
+              </span>
             </h3>
-            <p className="mb-6 text-sm text-neutral-400 text-center">
-              O horário exibido é apenas uma <strong className="text-yellow-400">PREVISÃO</strong>, podendo sofrer variações para <strong className="text-yellow-400">MAIS</strong> ou para <strong className="text-yellow-400">MENOS</strong>.
+            <p className="mb-4 text-xs text-neutral-500">
+              Selecione os serviços desejados
             </p>
+
+            <div className="space-y-2 mb-4">
+              {BARBER_SERVICES.map((svc) => {
+                const selected = servicesPerPerson[dialogStep].includes(
+                  svc.id as ServiceId,
+                );
+                return (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    onClick={() =>
+                      toggleService(dialogStep, svc.id as ServiceId)
+                    }
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-all ${
+                      selected
+                        ? "border-emerald-500 bg-emerald-900/20 text-emerald-400"
+                        : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-5 w-5 items-center justify-center rounded border ${
+                          selected
+                            ? "border-emerald-500 bg-emerald-500"
+                            : "border-neutral-600"
+                        }`}
+                      >
+                        {selected && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      <span className="font-medium">{svc.label}</span>
+                    </div>
+                    <span className="text-sm text-neutral-400">
+                      {svc.duration} min
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mb-4 flex items-center justify-between rounded-xl bg-neutral-800 px-4 py-2">
+              <span className="text-sm text-neutral-400">Tempo total</span>
+              <span className="font-bold text-white">
+                {calculatePersonDuration(servicesPerPerson[dialogStep])} min
+              </span>
+            </div>
+
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setShowConfirmDialog(false)}
+                onClick={() => setDialogStep(null)}
                 className="flex-1 h-12 rounded-xl border border-neutral-700 text-neutral-300 font-medium transition-colors hover:bg-neutral-800"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                onClick={handleConfirmJoin}
-                className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-medium transition-colors hover:bg-emerald-700"
+                onClick={handleDialogNext}
+                disabled={
+                  loading ||
+                  servicesPerPerson[dialogStep].length === 0
+                }
+                className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-medium transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
-                Entendi
+                {loading ? (
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                ) : dialogStep < numberOfPeople - 1 ? (
+                  "Próximo"
+                ) : (
+                  "Confirmar"
+                )}
               </button>
             </div>
           </motion.div>

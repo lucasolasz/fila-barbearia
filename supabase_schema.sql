@@ -114,3 +114,6 @@ create table IF NOT EXISTS public.campaigns (
 
 -- Disable RLS for campaigns (admin-only access via service role)
 ALTER TABLE public.campaigns DISABLE ROW LEVEL SECURITY;
+
+-- Add service_duration to queue (duration in minutes for each entry)
+ALTER TABLE IF EXISTS public.queue ADD COLUMN IF NOT EXISTS service_duration INTEGER DEFAULT 30;
