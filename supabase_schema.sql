@@ -2,7 +2,7 @@
 -- Run this in your Supabase SQL Editor
 
 -- 1. Customers Table
-create table IF NOT EXISTS  public.customers (
+create table IF NOT EXISTS public.customers (
   id uuid not null default gen_random_uuid (),
   name text not null,
   phone text not null,
@@ -21,12 +21,17 @@ create table IF NOT EXISTS public.queue (
   created_at timestamp with time zone null default now(),
   service_start timestamp with time zone null,
   service_end timestamp with time zone null,
-  notified_near boolean null default false,
+  notified_near boolean null,
   notified_next boolean null default false,
   last_update_sent_at timestamp with time zone null,
   last_sent_eta integer null,
+  service_duration integer null default 30,
+  parent_queue_id uuid null,
+  selected_services text[] null default '{}'::text[],
+  last_delay_sent_at timestamp with time zone null,
   constraint queue_pkey primary key (id),
-  constraint queue_customer_id_fkey foreign KEY (customer_id) references customers (id)
+  constraint queue_customer_id_fkey foreign KEY (customer_id) references customers (id) on delete CASCADE,
+  constraint queue_parent_queue_id_fkey foreign KEY (parent_queue_id) references queue (id)
 ) TABLESPACE pg_default;
 
 -- 3. Services Table (History)
@@ -36,11 +41,11 @@ create table IF NOT EXISTS public.services (
   duration_minutes integer not null,
   created_at timestamp with time zone null default now(),
   constraint services_pkey primary key (id),
-  constraint services_customer_id_fkey foreign KEY (customer_id) references customers (id)
+  constraint services_customer_id_fkey foreign KEY (customer_id) references customers (id) on delete set null
 ) TABLESPACE pg_default;
 
 -- 4. Barbershop Schedule
-create table IF NOT EXISTS  public.barbershop_schedule (
+create table IF NOT EXISTS public.barbershop_schedule (
   id uuid not null default gen_random_uuid (),
   weekday integer not null,
   open_time time without time zone null,
@@ -80,27 +85,10 @@ create table IF NOT EXISTS public.shop_settings (
       manual_status = any (array['auto'::text, 'open'::text, 'closed'::text])
     )
   ),
-  constraint shop_settings_theme_check check (
+  constraint theme_check check (
     (theme = any (array['light'::text, 'dark'::text]))
   )
 ) TABLESPACE pg_default;
-
--- Initial Shop Settings Data
-INSERT INTO "public"."shop_settings" ("id", "manual_status", "updated_at", "whatsapp_number", "theme", "shop_name", "logo_url", "webhook_url", "tracking_url_base", "base_queue_time", "max_queue_time") VALUES ('8af2b68d-f970-41b2-b5ef-32b086db69bd', 'auto', '2026-03-29 20:21:17.552291+00', '+5521999062880', 'dark', 'Don Cabellone', 'https://mgvkygjydujtoqubgwmc.supabase.co/storage/v1/object/public/logos/logo-1776533077248.jpg', 'https://n8ndes.ltech.app.br/webhook/notificacao', 'https://www.doncabellone.com.br/', 30, '19:00');
-
--- Initial Schedule Data
-INSERT INTO "public"."barbershop_schedule" ("id", "weekday", "open_time", "close_time", "is_closed") VALUES ('303420a2-bfa2-4be4-83d7-357a7496261f', 3, '09:00:00', '18:00:00', false), ('37f400ad-63a1-4535-ad06-b82ab141b83c', 5, '09:00:00', '18:00:00', false), ('3bec7d66-7b91-45b0-b26f-c3ccf281d4e1', 0, '17:04:00', '22:04:00', true), ('40cbf2d7-d3a7-4f77-9f10-a6bcca7b382d', 2, '09:00:00', '18:00:00', false), ('46d09e45-6176-454d-95fc-e5568a9eb851', 4, '09:00:00', '18:00:00', false), ('c6bb2f17-5df3-4ca3-9bf9-28e0c79383c6', 1, '09:00:00', '19:00:00', true), ('ec0f195f-3a9a-441f-892c-538814970443', 6, '08:00:00', '17:00:00', false);
-
--- Enable Realtime for Queue table
-ALTER PUBLICATION supabase_realtime ADD TABLE queue;
-ALTER PUBLICATION supabase_realtime ADD TABLE barbershop_schedule;
-ALTER PUBLICATION supabase_realtime ADD TABLE schedule_exceptions;
-ALTER PUBLICATION supabase_realtime ADD TABLE shop_settings;
-
--- Add persistent webhook update tracking fields to queue
-ALTER TABLE IF EXISTS queue
-  ADD COLUMN IF NOT EXISTS last_update_sent_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS last_sent_eta INTEGER;
 
 -- 7. Campaigns Table
 create table IF NOT EXISTS public.campaigns (
@@ -112,20 +100,28 @@ create table IF NOT EXISTS public.campaigns (
   constraint campaigns_pkey primary key (id)
 ) TABLESPACE pg_default;
 
+-- 8. Campaign Drafts Table
+create table IF NOT EXISTS public.campaign_drafts (
+  id uuid not null default gen_random_uuid (),
+  title text not null,
+  message text not null,
+  selected_contact_ids text[] not null default '{}'::text[],
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint campaign_drafts_pkey primary key (id)
+) TABLESPACE pg_default;
+
 -- Disable RLS for campaigns (admin-only access via service role)
 ALTER TABLE public.campaigns DISABLE ROW LEVEL SECURITY;
 
--- Add service_duration to queue (duration in minutes for each entry)
-ALTER TABLE IF EXISTS public.queue ADD COLUMN IF NOT EXISTS service_duration INTEGER DEFAULT 30;
+-- Enable Realtime for Queue table
+ALTER PUBLICATION supabase_realtime ADD TABLE queue;
+ALTER PUBLICATION supabase_realtime ADD TABLE barbershop_schedule;
+ALTER PUBLICATION supabase_realtime ADD TABLE schedule_exceptions;
+ALTER PUBLICATION supabase_realtime ADD TABLE shop_settings;
 
--- Add parent_queue_id to link guest entries to the responsible customer's queue entry
-ALTER TABLE IF EXISTS public.queue
-  ADD COLUMN IF NOT EXISTS parent_queue_id UUID REFERENCES public.queue(id);
+-- Initial Shop Settings Data
+INSERT INTO "public"."shop_settings" ("id", "manual_status", "updated_at", "whatsapp_number", "theme", "shop_name", "logo_url", "webhook_url", "tracking_url_base", "base_queue_time", "max_queue_time") VALUES ('8af2b68d-f970-41b2-b5ef-32b086db69bd', 'auto', '2026-03-29 20:21:17.552291+00', '+5521999062880', 'dark', 'Don Cabellone', 'https://mgvkygjydujtoqubgwmc.supabase.co/storage/v1/object/public/logos/logo-1776533077248.jpg', 'https://n8ndes.ltech.app.br/webhook/notificacao', 'https://www.doncabellone.com.br/', 30, '19:00');
 
--- Add selected_services to store which services were chosen for each queue entry
-ALTER TABLE IF EXISTS public.queue
-  ADD COLUMN IF NOT EXISTS selected_services TEXT[] DEFAULT '{}';
-
--- Add delay webhook tracking field
-ALTER TABLE IF EXISTS public.queue
-  ADD COLUMN IF NOT EXISTS last_delay_sent_at TIMESTAMPTZ;
+-- Initial Schedule Data
+INSERT INTO "public"."barbershop_schedule" ("id", "weekday", "open_time", "close_time", "is_closed") VALUES ('303420a2-bfa2-4be4-83d7-357a7496261f', 3, '09:00:00', '18:00:00', false), ('37f400ad-63a1-4535-ad06-b82ab141b83c', 5, '09:00:00', '18:00:00', false), ('3bec7d66-7b91-45b0-b26f-c3ccf281d4e1', 0, '17:04:00', '22:04:00', true), ('40cbf2d7-d3a7-4f77-9f10-a6bcca7b382d', 2, '09:00:00', '18:00:00', false), ('46d09e45-6176-454d-95fc-e5568a9eb851', 4, '09:00:00', '18:00:00', false), ('c6bb2f17-5df3-4ca3-9bf9-28e0c79383c6', 1, '09:00:00', '19:00:00', true), ('ec0f195f-3a9a-441f-892c-538814970443', 6, '08:00:00', '17:00:00', false);
