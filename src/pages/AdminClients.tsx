@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { IMaskInput } from "react-imask";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -24,22 +25,18 @@ interface ClientItem {
   created_at: string;
 }
 
-function stripMask(phone: string) {
-  return phone.replace(/\D/g, "");
-}
+const PHONE_MASK = "(00) 00000-0000";
 
-function applyPhoneMask(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return digits.length ? `(${digits}` : "";
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
-
-function handlePhoneChange(
-  e: React.ChangeEvent<HTMLInputElement>,
-  setter: (v: string) => void
-) {
-  setter(applyPhoneMask(e.target.value));
+function formatPhone(phone: string) {
+  if (!phone || phone.startsWith("manual_")) return "—";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
 }
 
 export default function AdminClients() {
@@ -83,7 +80,6 @@ export default function AdminClients() {
         .from("customers")
         .select("id, name, phone, created_at")
         .order("name", { ascending: true });
-
       if (error) throw error;
       setClients(data || []);
     } catch (error) {
@@ -114,7 +110,8 @@ export default function AdminClients() {
   function startEdit(client: ClientItem) {
     setEditingId(client.id);
     setEditName(client.name);
-    setEditPhone(applyPhoneMask(client.phone));
+    // IMask with unmask:true expects raw digits in value
+    setEditPhone(client.phone.replace(/\D/g, ""));
   }
 
   function cancelEdit() {
@@ -130,14 +127,12 @@ export default function AdminClients() {
       toast.error("Nome é obrigatório");
       return;
     }
-
-    const rawPhone = stripMask(editPhone).trim();
-
+    // editPhone já é dígitos puros (unmask:true)
     setSaving(true);
     try {
       const { error } = await supabase
         .from("customers")
-        .update({ name: trimmedName, phone: rawPhone })
+        .update({ name: trimmedName, phone: editPhone })
         .eq("id", editingId);
 
       if (error) {
@@ -153,7 +148,7 @@ export default function AdminClients() {
       setClients((prev) =>
         prev.map((c) =>
           c.id === editingId
-            ? { ...c, name: trimmedName, phone: rawPhone }
+            ? { ...c, name: trimmedName, phone: editPhone }
             : c
         )
       );
@@ -179,7 +174,6 @@ export default function AdminClients() {
         .from("customers")
         .delete()
         .eq("id", deletingId);
-
       if (error) throw error;
 
       toast.success("Cliente excluído!");
@@ -212,14 +206,12 @@ export default function AdminClients() {
       toast.error("Nome é obrigatório");
       return;
     }
-
-    const rawPhone = stripMask(newPhone).trim();
-
+    // newPhone já é dígitos puros (unmask:true)
     setAdding(true);
     try {
       const { data, error } = await supabase
         .from("customers")
-        .insert({ name: trimmedName, phone: rawPhone })
+        .insert({ name: trimmedName, phone: newPhone })
         .select("id, name, phone, created_at")
         .single();
 
@@ -245,24 +237,6 @@ export default function AdminClients() {
     }
   }
 
-  function formatPhone(phone: string) {
-    if (!phone || phone.startsWith("manual_")) return "—";
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length === 13 && digits.startsWith("55")) {
-      const ddd = digits.slice(2, 4);
-      const prefix = digits.slice(4, 9);
-      const suffix = digits.slice(9);
-      return `(${ddd}) ${prefix}-${suffix}`;
-    }
-    if (digits.length === 11) {
-      const ddd = digits.slice(0, 2);
-      const prefix = digits.slice(2, 7);
-      const suffix = digits.slice(7);
-      return `(${ddd}) ${prefix}-${suffix}`;
-    }
-    return phone;
-  }
-
   if (loading && clients.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-950">
@@ -274,6 +248,9 @@ export default function AdminClients() {
   const deletingClient = deletingId
     ? clients.find((c) => c.id === deletingId)
     : null;
+
+  const phoneInputClass =
+    "h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400";
 
   return (
     <div className="min-h-screen bg-neutral-950 pb-20">
@@ -335,49 +312,37 @@ export default function AdminClients() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-neutral-800 border-b border-neutral-700">
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Nome
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Telefone
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Cadastro
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500 text-right">
-                    Ações
-                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Nome</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Telefone</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Cadastro</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
                 {paginatedClients.map((client) =>
                   editingId === client.id ? (
-                    <tr
-                      key={client.id}
-                      className="bg-neutral-800/50"
-                    >
+                    <tr key={client.id} className="bg-neutral-800/50">
                       <td className="px-6 py-3">
                         <input
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400"
+                          className={phoneInputClass}
                           autoFocus
                         />
                       </td>
                       <td className="px-6 py-3">
-                        <input
-                          type="text"
-                          inputMode="numeric"
+                        <IMaskInput
+                          mask={PHONE_MASK}
+                          unmask
                           value={editPhone}
-                          onChange={(e) => handlePhoneChange(e, setEditPhone)}
+                          onAccept={(value) => setEditPhone(value as string)}
+                          inputMode="numeric"
                           placeholder="(00) 00000-0000"
-                          className="h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400"
+                          className={phoneInputClass}
                         />
                       </td>
-                      <td className="px-6 py-3 text-sm text-neutral-500">
-                        —
-                      </td>
+                      <td className="px-6 py-3 text-sm text-neutral-500">—</td>
                       <td className="px-6 py-3">
                         <div className="flex items-center justify-end space-x-2">
                           <button
@@ -407,9 +372,7 @@ export default function AdminClients() {
                       className="hover:bg-neutral-800/50 transition-colors"
                     >
                       <td className="px-6 py-4">
-                        <p className="text-sm font-bold text-white">
-                          {client.name}
-                        </p>
+                        <p className="text-sm font-bold text-white">{client.name}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-neutral-400">
                         {formatPhone(client.phone)}
@@ -464,12 +427,9 @@ export default function AdminClients() {
                 {Math.min(currentPage * itemsPerPage, filteredClients.length)}
               </span>{" "}
               de{" "}
-              <span className="font-bold text-white">
-                {filteredClients.length}
-              </span>{" "}
+              <span className="font-bold text-white">{filteredClients.length}</span>{" "}
               clientes
             </p>
-
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -483,9 +443,7 @@ export default function AdminClients() {
                 {currentPage} / {totalPages}
               </span>
               <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="flex items-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
               >
@@ -521,11 +479,12 @@ export default function AdminClients() {
                 <label className="mb-1 block text-xs font-bold uppercase text-neutral-500">
                   Telefone
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <IMaskInput
+                  mask={PHONE_MASK}
+                  unmask
                   value={newPhone}
-                  onChange={(e) => handlePhoneChange(e, setNewPhone)}
+                  onAccept={(value) => setNewPhone(value as string)}
+                  inputMode="numeric"
                   placeholder="(00) 00000-0000"
                   className="h-10 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 text-sm text-white outline-none focus:border-emerald-500 transition-all"
                 />
@@ -562,10 +521,8 @@ export default function AdminClients() {
             <h3 className="text-lg font-bold text-white">Confirmar exclusão</h3>
             <p className="mt-2 text-sm text-neutral-400">
               Tem certeza que deseja excluir o cliente{" "}
-              <span className="font-bold text-white">
-                {deletingClient.name}
-              </span>
-              ? Esta ação não pode ser desfeita.
+              <span className="font-bold text-white">{deletingClient.name}</span>? Esta
+              ação não pode ser desfeita.
             </p>
             <div className="mt-6 flex space-x-3">
               <button
