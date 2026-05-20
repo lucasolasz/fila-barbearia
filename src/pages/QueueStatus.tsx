@@ -40,7 +40,7 @@ export default function QueueStatus() {
     }
 
     calc();
-    const interval = setInterval(calc, 20000);
+    const interval = setInterval(calc, 30000);
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -97,7 +97,9 @@ export default function QueueStatus() {
       }
 
       setQueueItem(data);
-      calculatePosition(data.position);
+      const pos = await calculatePosition(data.position);
+      const eta = await calculateEstimatedServiceTimeDynamic(pos);
+      if (mounted) setEstimatedTimeStr(eta);
       fetchSettings();
       fetchGuestCount(data.id);
       setLoading(false);
@@ -123,14 +125,16 @@ export default function QueueStatus() {
       }
     }
 
-    async function calculatePosition(currentPosition: number) {
+    async function calculatePosition(currentPosition: number): Promise<number> {
       const { count } = await supabase
         .from("queue")
         .select("*", { count: "exact", head: true })
         .in("status", ["waiting", "serving"])
         .lt("position", currentPosition || 999999);
 
-      setPosition((count || 0) + 1);
+      const pos = (count || 0) + 1;
+      setPosition(pos);
+      return pos;
     }
 
     fetchStatus();

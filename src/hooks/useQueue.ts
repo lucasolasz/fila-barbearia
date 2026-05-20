@@ -153,6 +153,41 @@ export function calculateEstimatedServiceTime(
   return format(roundToNearest5(rawTime), "HH:mm");
 }
 
+export function calculateEstimatedServiceTimeFromEntries(
+  posicaoNaFila: number,
+  activeEntries: { status: string; service_start?: string | null; service_duration?: number | null }[],
+): string {
+  const now = new Date();
+  const servingEntry = activeEntries.find((e) => e.status === "serving");
+  const servingCount = servingEntry ? 1 : 0;
+
+  if (!servingEntry && posicaoNaFila <= 1) return "Agora";
+  if (posicaoNaFila <= 0) return "Agora";
+
+  let baseStart: Date;
+  if (servingEntry?.service_start) {
+    const duration = servingEntry.service_duration ?? 30;
+    const started = new Date(servingEntry.service_start);
+    const projectedEnd = addMinutes(started, duration);
+    baseStart = projectedEnd.getTime() > now.getTime() ? projectedEnd : addMinutes(now, 10);
+  } else {
+    baseStart = now;
+  }
+
+  const waitingEntries = activeEntries.filter((e) => e.status === "waiting");
+  const waitingAheadEntries = waitingEntries.slice(
+    0,
+    Math.max(0, posicaoNaFila - 1 - servingCount),
+  );
+  const shiftByMinutes = waitingAheadEntries.reduce(
+    (sum, e) => sum + (e.service_duration ?? 30),
+    0,
+  );
+
+  const rawStart = addMinutes(baseStart, shiftByMinutes);
+  return format(roundToNearest5(rawStart), "HH:mm");
+}
+
 export async function calculateEstimatedServiceTimeDynamic(
   posicaoNaFila: number,
 ): Promise<string> {

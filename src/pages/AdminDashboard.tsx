@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
   calculateEstimatedMinutes,
-  calculateEstimatedServiceTime,
+  calculateEstimatedServiceTimeFromEntries,
   useQueueCount,
   useShopStatus,
 } from "../hooks/useQueue";
@@ -56,6 +56,7 @@ export default function AdminDashboard() {
   );
   const [isLunchPaused, setIsLunchPaused] = useState(false);
   const [isPreOpening, setIsPreOpening] = useState(false);
+  const [estimatedTimes, setEstimatedTimes] = useState<Record<string, string>>({});
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
   const { isOpen: isShopOpen } = useShopStatus();
@@ -155,11 +156,39 @@ export default function AdminDashboard() {
         )
         .subscribe();
 
+      const pollInterval = setInterval(() => {
+        fetchQueue();
+        fetchSettings();
+      }, 5000);
+
       return () => {
         supabase.removeChannel(channel);
+        clearInterval(pollInterval);
       };
     }
   }, [isAuthenticated, fetchQueue, fetchSettings, playUpdateSound]);
+
+  useEffect(() => {
+    if (queue.length === 0) {
+      setEstimatedTimes({});
+      return;
+    }
+    const servingCount = queue.filter((i) => i.status === "serving").length;
+    const waitingItems = queue
+      .filter((i) => i.status === "waiting")
+      .sort((a, b) => a.position - b.position);
+    const map: Record<string, string> = {};
+    for (const item of queue) {
+      if (item.status === "serving") {
+        map[item.id] = "Agora";
+      } else {
+        const idx = waitingItems.findIndex((i) => i.id === item.id);
+        const pos = servingCount + idx + 1;
+        map[item.id] = calculateEstimatedServiceTimeFromEntries(pos, queue);
+      }
+    }
+    setEstimatedTimes(map);
+  }, [queue]);
 
   useEffect(() => {
     if (!isAuthenticated || queue.length === 0) return;
@@ -826,6 +855,7 @@ if (loading) {
           localQueue={localQueue}
           isReordering={isReordering}
           processingId={processingId}
+          estimatedTimes={estimatedTimes}
           onDragEnd={onDragEnd}
           onSaveOrder={handleSaveOrder}
           onCancelReorder={handleCancelReorder}

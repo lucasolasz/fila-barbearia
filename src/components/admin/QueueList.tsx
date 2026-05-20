@@ -8,7 +8,6 @@ import {
 import { Loader2, Save, UserPlus, Users, X } from "lucide-react";
 import { useState } from "react";
 import { QueueItem } from "../../lib/supabase";
-import { calculateEstimatedServiceTime } from "../../hooks/useQueue";
 import QueueItemCard from "./QueueItemCard";
 
 interface QueueListProps {
@@ -16,6 +15,7 @@ interface QueueListProps {
   localQueue: QueueItem[];
   isReordering: boolean;
   processingId: string | null;
+  estimatedTimes: Record<string, string>;
   onDragEnd: (result: DropResult) => void;
   onSaveOrder: () => void;
   onCancelReorder: () => void;
@@ -31,6 +31,7 @@ export default function QueueList({
   localQueue,
   isReordering,
   processingId,
+  estimatedTimes,
   onDragEnd,
   onSaveOrder,
   onCancelReorder,
@@ -103,15 +104,7 @@ export default function QueueList({
                     item.status === "serving"
                       ? 1
                       : servingCount + waitingIndex + 1;
-                  const avgDuration =
-                    localQueue.reduce(
-                      (sum, i) => sum + (i.service_duration ?? 37),
-                      0,
-                    ) / (localQueue.length || 1);
-                  const estimatedTime = calculateEstimatedServiceTime(
-                    position,
-                    Math.round(avgDuration),
-                  );
+                  const estimatedTime = estimatedTimes[item.id] ?? "...";
 
                   return (
                     <Draggable
