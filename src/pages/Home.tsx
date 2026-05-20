@@ -120,7 +120,7 @@ export default function Home() {
       .select("id, status")
       .eq("id", storedQueueId)
       .maybeSingle()
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: { id: string; status: string } | null; error: { code: string } | null }) => {
         if (error && error.code !== "PGRST116") return;
         if (!data) {
           clearQueueSession();
