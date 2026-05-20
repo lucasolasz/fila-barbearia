@@ -45,7 +45,7 @@ export default function QueueStatus() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [position]);
+  }, [position, isLunchPaused]);
 
   useEffect(() => {
     let mounted = true;

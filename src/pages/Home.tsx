@@ -333,7 +333,7 @@ export default function Home() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [queueCount]);
+  }, [queueCount, isLunchPaused]);
   const isQueueFull =
     estimatedTimeStr !== "Agora" &&
     maxQueueTime &&
