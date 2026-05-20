@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  calculateEstimatedMinutes,
-  calculateEstimatedServiceTime,
-  useQueueCount,
+  calculateEstimatedServiceTimeFromEntries,
+  useShopStatus,
 } from "../hooks/useQueue";
 import { useShopSettings } from "../hooks/useShopSettings";
+import { useQueueActions } from "../hooks/useQueueActions";
+import { useWebhookNotifications } from "../hooks/useWebhookNotifications";
 import { QueueItem, supabase } from "../lib/supabase";
 import { webhookService } from "../services/webhookService";
 
@@ -18,6 +19,19 @@ import RemoveConfirmModal from "../components/admin/RemoveConfirmModal";
 import StatsCards from "../components/admin/StatsCards";
 import { DropResult } from "@hello-pangea/dnd";
 
+async function updateShopSettings(patch: Record<string, unknown>) {
+  const { data: current } = await supabase
+    .from("shop_settings")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+  if (current) {
+    await supabase.from("shop_settings").update(patch).eq("id", current.id);
+  } else {
+    await supabase.from("shop_settings").insert([patch]);
+  }
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -25,23 +39,26 @@ export default function AdminDashboard() {
   const [localQueue, setLocalQueue] = useState<QueueItem[]>([]);
   const [isReordering, setIsReorderingState] = useState(false);
   const isReorderingRef = useRef(false);
-  const notifiedPositionMap = useRef<Map<string, number>>(new Map());
-  const processingWebhooksRef = useRef(false);
-  const processingDelayRef = useRef(false);
 
   const setIsReordering = (value: boolean) => {
     isReorderingRef.current = value;
     setIsReorderingState(value);
   };
+
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [itemToRemove, setItemToRemove] = useState<string | null>(null);
   const [manualStatus, setManualStatus] = useState<"auto" | "open" | "closed">(
     "auto",
   );
+  const [isLunchPaused, setIsLunchPaused] = useState(false);
+  const [isPreOpening, setIsPreOpening] = useState(false);
+  const [estimatedTimes, setEstimatedTimes] = useState<Record<string, string>>(
+    {},
+  );
+
   const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
     useShopSettings();
+  const { isOpen: isShopOpen } = useShopStatus();
 
   const playUpdateSound = useCallback(() => {
     const audio = new Audio("/cash-register.mp3");
@@ -80,7 +97,6 @@ export default function AdminDashboard() {
         if (a.status !== "serving" && b.status === "serving") return 1;
         return 0;
       });
-
       setQueue(sortedData);
       setLocalQueue((prev) => {
         if (isReorderingRef.current) return prev;
@@ -100,6 +116,8 @@ export default function AdminDashboard() {
       setManualStatus((prev) =>
         prev !== data.manual_status ? data.manual_status : prev,
       );
+      setIsLunchPaused(data.is_lunch_paused ?? false);
+      setIsPreOpening(data.is_pre_opening ?? false);
     } else if (!error) {
       const { data: newData } = await supabase
         .from("shop_settings")
@@ -110,6 +128,17 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // Auth check
+  useEffect(() => {
+    const auth = sessionStorage.getItem("barber_admin_auth");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  // Realtime subscription + polling
   useEffect(() => {
     if (isAuthenticated) {
       fetchQueue();
@@ -122,465 +151,103 @@ export default function AdminDashboard() {
           { event: "*", schema: "public", table: "queue" },
           (payload: any) => {
             fetchQueue();
-            if (payload.eventType === "INSERT") {
-              playUpdateSound();
-            }
+            if (payload.eventType === "INSERT") playUpdateSound();
           },
         )
         .on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "shop_settings" },
-          () => {
-            fetchSettings();
-          },
+          () => fetchSettings(),
         )
         .subscribe();
 
+      const pollInterval = setInterval(() => {
+        fetchQueue();
+        fetchSettings();
+      }, 5000);
+
       return () => {
         supabase.removeChannel(channel);
+        clearInterval(pollInterval);
       };
     }
   }, [isAuthenticated, fetchQueue, fetchSettings, playUpdateSound]);
 
+  // ETA computation (sync, uses queue already in state)
+  useEffect(() => {
+    if (queue.length === 0) {
+      setEstimatedTimes({});
+      return;
+    }
+    const servingCount = queue.filter((i) => i.status === "serving").length;
+    const waitingItems = queue
+      .filter((i) => i.status === "waiting")
+      .sort((a, b) => a.position - b.position);
+    const map: Record<string, string> = {};
+    for (const item of queue) {
+      if (item.status === "serving") {
+        map[item.id] = "Agora";
+      } else {
+        const idx = waitingItems.findIndex((i) => i.id === item.id);
+        map[item.id] = calculateEstimatedServiceTimeFromEntries(
+          servingCount + idx + 1,
+          queue,
+        );
+      }
+    }
+    setEstimatedTimes(map);
+  }, [queue]);
+
+  // Sound alerts
   useEffect(() => {
     if (!isAuthenticated || queue.length === 0) return;
-
-    const hasServing = queue.some((item) => item.status === "serving");
-    if (hasServing) return;
-
-    const interval = setInterval(
-      () => {
-        playWaitingAlertSound();
-      },
-      5 * 60 * 1000,
-    );
-
+    if (queue.some((i) => i.status === "serving")) return;
+    const interval = setInterval(playWaitingAlertSound, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated, queue, playWaitingAlertSound]);
 
   useEffect(() => {
     if (!isAuthenticated || queue.length === 0) return;
-
-    const hasServing = queue.some((item) => item.status === "serving");
-    if (!hasServing) return;
-
+    if (!queue.some((i) => i.status === "serving")) return;
     const interval = setInterval(() => {
-      const servingItem = queue.find((item) => item.status === "serving");
+      const servingItem = queue.find((i) => i.status === "serving");
       if (!servingItem?.service_start) return;
-
       const startTime = new Date(servingItem.service_start).getTime();
       const durationMs = (servingItem.service_duration ?? 30) * 60 * 1000;
-      if (startTime < Date.now() - durationMs) {
-        playServingTimeoutSound();
-      }
+      if (startTime < Date.now() - durationMs) playServingTimeoutSound();
     }, 10 * 60 * 1000);
-
     return () => clearInterval(interval);
   }, [isAuthenticated, queue, playServingTimeoutSound]);
 
-  useEffect(() => {
-    const auth = sessionStorage.getItem("barber_admin_auth");
-    if (auth === "true") {
-      setIsAuthenticated(true);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleToggleManualStatus = async () => {
-    const nextStatus: Record<
-      "auto" | "open" | "closed",
-      "auto" | "open" | "closed"
-    > = {
-      auto: "open",
-      open: "closed",
-      closed: "auto",
-    };
-
-    const newStatus = nextStatus[manualStatus];
-
-    try {
-      const { data: current } = await supabase
-        .from("shop_settings")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-      if (current) {
-        await supabase
-          .from("shop_settings")
-          .update({ manual_status: newStatus })
-          .eq("id", current.id);
-      } else {
-        await supabase
-          .from("shop_settings")
-          .insert([{ manual_status: newStatus }]);
-      }
-      setManualStatus(newStatus);
-      const id = toast.success(
-        `Fila em modo ${newStatus === "auto" ? "Automático" : newStatus === "open" ? "Aberto" : "Fechado"}`,
-      );
-      setTimeout(() => {
-        toast.dismiss(id);
-      }, 1800);
-    } catch (error) {
-      toast.error("Falha ao atualizar status da fila");
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated || queue.length === 0 || processingWebhooksRef.current)
-      return;
-
-    const processWebhooks = async () => {
-      processingWebhooksRef.current = true;
-      try {
-        const servingCount = queue.filter(
-          (item) => item.status === "serving",
-        ).length;
-        const waitingItems = queue
-          .filter((item) => item.status === "waiting")
-          .sort((a, b) => a.position - b.position);
-
-        const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
-
-        for (let index = 0; index < waitingItems.length; index++) {
-          const item = waitingItems[index];
-          const position = servingCount + index + 1;
-          const peopleAhead = position - 1;
-          const lastPos = notifiedPositionMap.current.get(item.id);
-
-          if (lastPos === undefined) {
-            notifiedPositionMap.current.set(item.id, position);
-            continue;
-          }
-
-          if (lastPos !== position) {
-            const notifiedNext = (item as any).notified_next ?? false;
-            const notifiedNear = (item as any).notified_near ?? false;
-            let webhookSent = false;
-
-            const nextTriggerPosition = servingCount + 1;
-            if (
-              position === nextTriggerPosition &&
-              lastPos > nextTriggerPosition &&
-              !notifiedNext
-            ) {
-              webhookSent = await webhookService.sendWebhook(
-                "NEXT",
-                item,
-                position,
-                peopleAhead,
-                currentBaseTime,
-                shopName,
-                webhookUrl,
-                trackingUrlBase,
-              );
-              if (webhookSent) {
-                await supabase
-                  .from("queue")
-                  .update({ notified_next: true })
-                  .eq("id", item.id);
-              }
-            } else if (position <= 3 && lastPos > 3 && !notifiedNear) {
-              webhookSent = await webhookService.sendWebhook(
-                "NEAR",
-                item,
-                position,
-                peopleAhead,
-                currentBaseTime,
-                shopName,
-                webhookUrl,
-                trackingUrlBase,
-              );
-              if (webhookSent) {
-                await supabase
-                  .from("queue")
-                  .update({ notified_near: true })
-                  .eq("id", item.id);
-              }
-            } else {
-              try {
-                const etaMinutes = await calculateEstimatedMinutes(position);
-                const prevSentEta = (item as any).last_sent_eta;
-                const prevSentAt = (item as any).last_update_sent_at
-                  ? new Date((item as any).last_update_sent_at)
-                  : null;
-
-                const now = new Date();
-                const cooldownMs = 5 * 60 * 1000;
-                const etaDiff =
-                  prevSentEta == null
-                    ? Infinity
-                    : Math.abs(etaMinutes - prevSentEta);
-
-                if (
-                  etaDiff >= 10 &&
-                  (prevSentAt == null ||
-                    now.getTime() - prevSentAt.getTime() >= cooldownMs)
-                ) {
-                  webhookSent = await webhookService.sendWebhook(
-                    "UPDATE",
-                    item,
-                    position,
-                    peopleAhead,
-                    currentBaseTime,
-                    shopName,
-                    webhookUrl,
-                    trackingUrlBase,
-                  );
-
-                  if (webhookSent) {
-                    await supabase
-                      .from("queue")
-                      .update({
-                        last_update_sent_at: now.toISOString(),
-                        last_sent_eta: etaMinutes,
-                      })
-                      .eq("id", item.id);
-                  }
-                }
-              } catch (e) {
-                console.error("Erro ao processar UPDATE:", e);
-              }
-            }
-
-            notifiedPositionMap.current.set(item.id, position);
-
-            if (webhookSent) {
-              await new Promise((r) => setTimeout(r, 500));
-            }
-          }
-        }
-      } finally {
-        processingWebhooksRef.current = false;
-      }
-    };
-
-    processWebhooks();
-  }, [
-    queue,
+  // Webhook notifications (position changes, ETA drift, delays)
+  useWebhookNotifications({
     isAuthenticated,
+    queue,
     baseQueueTime,
     shopName,
     webhookUrl,
     trackingUrlBase,
-  ]);
+  });
 
-  useEffect(() => {
-    if (!isAuthenticated || !webhookUrl) return;
+  // Queue CRUD actions
+  const {
+    processingId,
+    itemToRemove,
+    setItemToRemove,
+    handleStartService,
+    handleCompleteService,
+    handleRemove,
+  } = useQueueActions({ queue, isLunchPaused, isPreOpening, fetchQueue });
 
-    const checkDelays = async () => {
-      if (processingDelayRef.current) return;
-      processingDelayRef.current = true;
-      try {
-        const servingItem = queue.find((i) => i.status === "serving");
-        if (!servingItem?.service_start) return;
-
-        const now = new Date();
-        const started = new Date(servingItem.service_start);
-        const elapsed = Math.round(
-          (now.getTime() - started.getTime()) / 60000,
-        );
-        const plannedDuration = servingItem.service_duration ?? 30;
-        if (elapsed <= plannedDuration) return;
-
-        const waitingItems = queue
-          .filter((i) => i.status === "waiting")
-          .sort((a, b) => a.position - b.position);
-
-        const cooldownMs = 10 * 60 * 1000;
-        const currentBaseTime = baseQueueTime ?? 30;
-
-        for (let i = 0; i < waitingItems.length; i++) {
-          const item = waitingItems[i];
-          const itemPosition = i + 2;
-          const peopleAhead = itemPosition - 1;
-
-          const lastDelaySent = item.last_delay_sent_at
-            ? new Date(item.last_delay_sent_at)
-            : null;
-
-          if (
-            lastDelaySent === null ||
-            now.getTime() - lastDelaySent.getTime() >= cooldownMs
-          ) {
-            await webhookService.sendWebhook(
-              "DELAYED",
-              item,
-              itemPosition,
-              peopleAhead,
-              currentBaseTime,
-              shopName,
-              webhookUrl,
-              trackingUrlBase,
-            );
-            await supabase
-              .from("queue")
-              .update({ last_delay_sent_at: now.toISOString() })
-              .eq("id", item.id);
-            await new Promise((r) => setTimeout(r, 500));
-          }
-        }
-      } finally {
-        processingDelayRef.current = false;
-      }
-    };
-
-    const interval = setInterval(checkDelays, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, queue, baseQueueTime, shopName, webhookUrl, trackingUrlBase]);
-
-  const normalizeQueuePositions = async () => {
-    try {
-      const { data: servingItems } = await supabase
-        .from("queue")
-        .select("id, position, status")
-        .eq("status", "serving")
-        .order("position", { ascending: true });
-
-      const { data: waitingItems } = await supabase
-        .from("queue")
-        .select("id, position, status")
-        .eq("status", "waiting")
-        .order("position", { ascending: true });
-
-      const combined = [...(servingItems || []), ...(waitingItems || [])];
-
-      const updates: Promise<any>[] = [];
-      for (let i = 0; i < combined.length; i++) {
-        const desiredPos = i + 1;
-        const item = combined[i] as any;
-        if (item.position !== desiredPos) {
-          updates.push(
-            supabase
-              .from("queue")
-              .update({ position: desiredPos })
-              .eq("id", item.id),
-          );
-        }
-      }
-
-      if (updates.length > 0) await Promise.all(updates);
-    } catch (err) {
-      console.error("Failed to normalize queue positions:", err);
-    }
-  };
-
-  const handleStartService = async (item: QueueItem) => {
-    if (processingId) return;
-    setProcessingId(item.id);
-    try {
-      const servingItem = queue.find((i) => i.status === "serving");
-      if (servingItem) {
-        const endTime = new Date();
-        const startTime = new Date(servingItem.service_start!);
-        const duration = Math.round(
-          (endTime.getTime() - startTime.getTime()) / 60000,
-        );
-
-        await supabase
-          .from("queue")
-          .update({
-            status: "completed",
-            service_end: endTime.toISOString(),
-          })
-          .eq("id", servingItem.id);
-
-        await supabase.from("services").insert([
-          {
-            customer_id: servingItem.customer_id,
-            duration_minutes: duration,
-          },
-        ]);
-      }
-
-      await supabase
-        .from("queue")
-        .update({
-          status: "serving",
-          service_start: new Date().toISOString(),
-        })
-        .eq("id", item.id);
-
-      toast.success(`Iniciou atendimento para ${item.customer?.name}`);
-      await normalizeQueuePositions();
-      await fetchQueue();
-    } catch (error) {
-      toast.error("Falha ao iniciar atendimento");
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleCompleteService = async (item: QueueItem) => {
-    if (processingId) return;
-    setProcessingId(item.id);
-    try {
-      const endTime = new Date();
-      const startTime = new Date(item.service_start!);
-      const duration = Math.round(
-        (endTime.getTime() - startTime.getTime()) / 60000,
-      );
-
-      const { error: queueError } = await supabase
-        .from("queue")
-        .update({
-          status: "completed",
-          service_end: endTime.toISOString(),
-        })
-        .eq("id", item.id);
-
-      if (queueError) throw queueError;
-
-      await supabase.from("services").insert([
-        {
-          customer_id: item.customer_id,
-          duration_minutes: duration,
-        },
-      ]);
-
-      toast.success(`Atendimento de ${item.customer?.name} finalizado!`);
-      await normalizeQueuePositions();
-      await fetchQueue();
-    } catch (error) {
-      toast.error("Falha ao finalizar atendimento");
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleRemove = async (id: string) => {
-    if (processingId) return;
-    setProcessingId(id);
-    try {
-      const { error } = await supabase
-        .from("queue")
-        .update({ status: "cancelled" })
-        .eq("id", id);
-      if (error) throw error;
-      toast.success("Cliente removido");
-      setItemToRemove(null);
-      await normalizeQueuePositions();
-      await fetchQueue();
-    } catch (error) {
-      toast.error("Falha ao remover cliente");
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
+  // Reorder handlers
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
-
-    const sourceIndex = result.source.index;
-    const destinationIndex = result.destination.index;
-
-    if (sourceIndex === destinationIndex) return;
-
+    const { index: from } = result.source;
+    const { index: to } = result.destination;
+    if (from === to) return;
     const newQueue = Array.from(localQueue);
-    const [reorderedItem] = newQueue.splice(sourceIndex, 1);
-    newQueue.splice(destinationIndex, 0, reorderedItem);
-
+    const [item] = newQueue.splice(from, 1);
+    newQueue.splice(to, 0, item);
     setLocalQueue(newQueue);
     setIsReordering(true);
   };
@@ -606,13 +273,11 @@ export default function AdminDashboard() {
           }
         }
       }
-
       if (updates.length > 0) await Promise.all(updates);
-
       toast.success("Ordem da fila atualizada!");
       setIsReordering(false);
       fetchQueue();
-    } catch (error) {
+    } catch {
       toast.error("Falha ao salvar a nova ordem");
       setLoading(false);
     }
@@ -623,12 +288,132 @@ export default function AdminDashboard() {
     setIsReordering(false);
   };
 
+  // Shop status toggles
+  const handleToggleManualStatus = async () => {
+    const next = { auto: "open", open: "closed", closed: "auto" } as const;
+    const newStatus = next[manualStatus];
+    if (isPreOpening && newStatus === "open") {
+      toast.error("Encerre a pré-abertura antes de abrir a fila manualmente.");
+      return;
+    }
+    if (isLunchPaused && newStatus === "closed") {
+      toast.error("Encerre o horário de almoço antes de fechar a fila.");
+      return;
+    }
+    try {
+      await updateShopSettings({ manual_status: newStatus });
+      setManualStatus(newStatus);
+      const id = toast.success(
+        `Fila em modo ${newStatus === "auto" ? "Automático" : newStatus === "open" ? "Aberto" : "Fechado"}`,
+      );
+      setTimeout(() => toast.dismiss(id), 1800);
+    } catch {
+      toast.error("Falha ao atualizar status da fila");
+    }
+  };
+
+  const handleToggleLunchPause = async () => {
+    if (!isLunchPaused) {
+      if (isPreOpening) {
+        toast.error(
+          "Encerre a pré-abertura antes de ativar o horário de almoço.",
+        );
+        return;
+      }
+      const isQueueOpen =
+        manualStatus === "open" || (manualStatus === "auto" && !!isShopOpen);
+      if (!isQueueOpen) {
+        toast.error(
+          "A barbearia precisa estar aberta para ativar o horário de almoço.",
+        );
+        return;
+      }
+    }
+    const newValue = !isLunchPaused;
+    try {
+      await updateShopSettings({ is_lunch_paused: newValue });
+      setIsLunchPaused(newValue);
+      const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
+      const servingCount = queue.filter((i) => i.status === "serving").length;
+      const event = newValue ? "LUNCH_START" : "LUNCH_END";
+      const items = newValue
+        ? queue.filter((i) => i.status === "waiting" || i.status === "serving")
+        : queue
+            .filter((i) => i.status === "waiting")
+            .sort((a, b) => a.position - b.position);
+      for (let i = 0; i < items.length; i++) {
+        const pos = servingCount + i + 1;
+        await webhookService.sendWebhook(
+          event,
+          items[i],
+          pos,
+          pos - 1,
+          currentBaseTime,
+          shopName,
+          webhookUrl,
+          trackingUrlBase,
+        );
+      }
+      const id = toast.success(
+        newValue ? "Modo almoço ativado" : "Retorno do almoço ativado",
+      );
+      setTimeout(() => toast.dismiss(id), 1800);
+    } catch {
+      toast.error("Falha ao atualizar modo almoço");
+    }
+  };
+
+  const handleTogglePreOpening = async () => {
+    if (!isPreOpening) {
+      if (manualStatus !== "auto") {
+        toast.error("A pré-abertura só pode ser ativada no modo automático.");
+        return;
+      }
+      if (isShopOpen) {
+        toast.error("A barbearia já está no horário de funcionamento.");
+        return;
+      }
+    }
+    const newValue = !isPreOpening;
+    try {
+      await updateShopSettings({ is_pre_opening: newValue });
+      setIsPreOpening(newValue);
+      const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
+      const servingCount = queue.filter((i) => i.status === "serving").length;
+      const event = newValue ? "PRE_OPENING_START" : "PRE_OPENING_END";
+      const items = newValue
+        ? queue.filter((i) => i.status === "waiting" || i.status === "serving")
+        : queue
+            .filter((i) => i.status === "waiting")
+            .sort((a, b) => a.position - b.position);
+      for (let i = 0; i < items.length; i++) {
+        const pos = servingCount + i + 1;
+        await webhookService.sendWebhook(
+          event,
+          items[i],
+          pos,
+          pos - 1,
+          currentBaseTime,
+          shopName,
+          webhookUrl,
+          trackingUrlBase,
+        );
+      }
+      const id = toast.success(
+        newValue ? "Modo pré-abertura ativado" : "Pré-abertura encerrada",
+      );
+      setTimeout(() => toast.dismiss(id), 1800);
+    } catch {
+      toast.error("Falha ao atualizar modo pré-abertura");
+    }
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem("barber_admin_auth");
     setIsAuthenticated(false);
   };
 
-if (loading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-950">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-800 border-t-emerald-600" />
@@ -646,9 +431,8 @@ if (loading) {
     );
   }
 
-  const itemToRemoveName = itemToRemove
-    ? queue.find((i) => i.id === itemToRemove)?.customer?.name || ""
-    : "";
+  const itemToRemoveName =
+    queue.find((i) => i.id === itemToRemove)?.customer?.name ?? "";
 
   return (
     <div className="min-h-screen bg-neutral-950 pb-20">
@@ -657,6 +441,10 @@ if (loading) {
         logoUrl={logoUrl ?? undefined}
         manualStatus={manualStatus}
         onToggleManualStatus={handleToggleManualStatus}
+        isLunchPaused={isLunchPaused}
+        onToggleLunch={handleToggleLunchPause}
+        isPreOpening={isPreOpening}
+        onTogglePreOpening={handleTogglePreOpening}
         onNavigate={navigate}
         onLogout={handleLogout}
       />
@@ -669,6 +457,7 @@ if (loading) {
           localQueue={localQueue}
           isReordering={isReordering}
           processingId={processingId}
+          estimatedTimes={estimatedTimes}
           onDragEnd={onDragEnd}
           onSaveOrder={handleSaveOrder}
           onCancelReorder={handleCancelReorder}

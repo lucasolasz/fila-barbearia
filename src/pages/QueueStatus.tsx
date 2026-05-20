@@ -5,6 +5,7 @@ import {
   LogOut,
   MessageCircle,
   Users,
+  UtensilsCrossed,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -25,7 +26,7 @@ export default function QueueStatus() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [guestCount, setGuestCount] = useState(0);
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
-  const { shopName, logoUrl, baseQueueTime } = useShopSettings();
+  const { shopName, logoUrl, baseQueueTime, isLunchPaused, isPreOpening } = useShopSettings();
 
   const [estimatedTimeStr, setEstimatedTimeStr] = useState("Agora");
 
@@ -39,12 +40,12 @@ export default function QueueStatus() {
     }
 
     calc();
-    const interval = setInterval(calc, 20000);
+    const interval = setInterval(calc, 30000);
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [position]);
+  }, [position, isLunchPaused, isPreOpening]);
 
   useEffect(() => {
     let mounted = true;
@@ -96,7 +97,9 @@ export default function QueueStatus() {
       }
 
       setQueueItem(data);
-      calculatePosition(data.position);
+      const pos = await calculatePosition(data.position);
+      const eta = await calculateEstimatedServiceTimeDynamic(pos);
+      if (mounted) setEstimatedTimeStr(eta);
       fetchSettings();
       fetchGuestCount(data.id);
       setLoading(false);
@@ -122,14 +125,16 @@ export default function QueueStatus() {
       }
     }
 
-    async function calculatePosition(currentPosition: number) {
+    async function calculatePosition(currentPosition: number): Promise<number> {
       const { count } = await supabase
         .from("queue")
         .select("*", { count: "exact", head: true })
         .in("status", ["waiting", "serving"])
         .lt("position", currentPosition || 999999);
 
-      setPosition((count || 0) + 1);
+      const pos = (count || 0) + 1;
+      setPosition(pos);
+      return pos;
     }
 
     fetchStatus();
@@ -237,8 +242,31 @@ export default function QueueStatus() {
             </div>
             {}
             <div className="p-8 space-y-5">
+              {isLunchPaused && (
+                <div className="flex items-start space-x-3 rounded-2xl bg-amber-900/20 p-4 text-amber-400 border border-amber-900/30">
+                  <UtensilsCrossed className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm">Pausa para almoço</p>
+                    <p className="text-sm opacity-90 mt-1">
+                      Estamos em pausa para o almoço. Assim que retornarmos,
+                      seu horário estimado será atualizado.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isPreOpening && (
+                <div className="flex items-start space-x-3 rounded-2xl bg-blue-900/20 p-4 text-blue-400 border border-blue-900/30">
+                  <Clock className="h-5 w-5 shrink-0 text-blue-400 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm">Barbeiro a caminho</p>
+                    <p className="text-sm opacity-90 mt-1">
+                      O horário estimado aparecerá assim que os atendimentos começarem.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div
-                className={`grid ${peopleAhead > 0 ? "grid-cols-2" : "grid-cols-1"} gap-4`}
+                className={`grid ${peopleAhead > 0 && !isLunchPaused && !isPreOpening ? "grid-cols-2" : "grid-cols-1"} gap-4`}
               >
                 <div className="rounded-2xl bg-neutral-800 p-2 text-center border border-neutral-700">
                   <Users className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
@@ -249,14 +277,14 @@ export default function QueueStatus() {
                     {position}
                   </p>
                 </div>
-                {peopleAhead > 0 && (
+                {peopleAhead > 0 && !isLunchPaused && !isPreOpening && (
                   <div className="rounded-2xl bg-neutral-800 p-4 text-center border border-neutral-700">
                     <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase text-neutral-500">
                       Horário Estimado
                     </p>
                     <p className="text-xl font-bold text-white mt-2">
-                      {estimatedTimeStr}
+                      {isPreOpening ? "Em breve" : estimatedTimeStr}
                     </p>
                   </div>
                 )}

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Edit3,
   Loader2,
+  Plus,
   Search,
   Trash2,
   Users,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { IMaskInput } from "react-imask";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -21,6 +23,20 @@ interface ClientItem {
   name: string;
   phone: string;
   created_at: string;
+}
+
+const PHONE_MASK = "(00) 00000-0000";
+
+function formatPhone(phone: string) {
+  if (!phone || phone.startsWith("manual_")) return "—";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
 }
 
 export default function AdminClients() {
@@ -38,6 +54,11 @@ export default function AdminClients() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const auth = sessionStorage.getItem("barber_admin_auth");
@@ -59,7 +80,6 @@ export default function AdminClients() {
         .from("customers")
         .select("id, name, phone, created_at")
         .order("name", { ascending: true });
-
       if (error) throw error;
       setClients(data || []);
     } catch (error) {
@@ -90,7 +110,8 @@ export default function AdminClients() {
   function startEdit(client: ClientItem) {
     setEditingId(client.id);
     setEditName(client.name);
-    setEditPhone(client.phone);
+    // IMask with unmask:true expects raw digits in value
+    setEditPhone(client.phone.replace(/\D/g, ""));
   }
 
   function cancelEdit() {
@@ -101,16 +122,17 @@ export default function AdminClients() {
 
   async function saveEdit() {
     if (!editingId) return;
-    if (!editName.trim()) {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
       toast.error("Nome é obrigatório");
       return;
     }
-
+    // editPhone já é dígitos puros (unmask:true)
     setSaving(true);
     try {
       const { error } = await supabase
         .from("customers")
-        .update({ name: editName.trim(), phone: editPhone.trim() })
+        .update({ name: trimmedName, phone: editPhone })
         .eq("id", editingId);
 
       if (error) {
@@ -126,7 +148,7 @@ export default function AdminClients() {
       setClients((prev) =>
         prev.map((c) =>
           c.id === editingId
-            ? { ...c, name: editName.trim(), phone: editPhone.trim() }
+            ? { ...c, name: trimmedName, phone: editPhone }
             : c
         )
       );
@@ -152,7 +174,6 @@ export default function AdminClients() {
         .from("customers")
         .delete()
         .eq("id", deletingId);
-
       if (error) throw error;
 
       toast.success("Cliente excluído!");
@@ -167,22 +188,53 @@ export default function AdminClients() {
     }
   }
 
-  function formatPhone(phone: string) {
-    if (!phone || phone.startsWith("manual_")) return "—";
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length === 13 && digits.startsWith("55")) {
-      const ddd = digits.slice(2, 4);
-      const prefix = digits.slice(4, 9);
-      const suffix = digits.slice(9);
-      return `(${ddd}) ${prefix}-${suffix}`;
+  function openAdd() {
+    setNewName("");
+    setNewPhone("");
+    setAddOpen(true);
+  }
+
+  function closeAdd() {
+    setAddOpen(false);
+    setNewName("");
+    setNewPhone("");
+  }
+
+  async function handleAdd() {
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      toast.error("Nome é obrigatório");
+      return;
     }
-    if (digits.length === 11) {
-      const ddd = digits.slice(0, 2);
-      const prefix = digits.slice(2, 7);
-      const suffix = digits.slice(7);
-      return `(${ddd}) ${prefix}-${suffix}`;
+    // newPhone já é dígitos puros (unmask:true)
+    setAdding(true);
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .insert({ name: trimmedName, phone: newPhone })
+        .select("id, name, phone, created_at")
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Já existe um cliente com este telefone");
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast.success("Cliente adicionado!");
+      setClients((prev) =>
+        [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      closeAdd();
+    } catch (error) {
+      console.error(error);
+      toast.error("Falha ao adicionar cliente");
+    } finally {
+      setAdding(false);
     }
-    return phone;
   }
 
   if (loading && clients.length === 0) {
@@ -196,6 +248,9 @@ export default function AdminClients() {
   const deletingClient = deletingId
     ? clients.find((c) => c.id === deletingId)
     : null;
+
+  const phoneInputClass =
+    "h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400";
 
   return (
     <div className="min-h-screen bg-neutral-950 pb-20">
@@ -215,9 +270,18 @@ export default function AdminClients() {
               </h1>
             </div>
           </div>
-          <span className="text-sm text-neutral-400">
-            {filteredClients.length} cliente{filteredClients.length !== 1 && "s"}
-          </span>
+          <div className="flex items-center space-x-3">
+            <span className="text-sm text-neutral-400">
+              {filteredClients.length} cliente{filteredClients.length !== 1 && "s"}
+            </span>
+            <button
+              onClick={openAdd}
+              className="flex items-center space-x-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Novo</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -248,47 +312,37 @@ export default function AdminClients() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-neutral-800 border-b border-neutral-700">
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Nome
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Telefone
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">
-                    Cadastro
-                  </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500 text-right">
-                    Ações
-                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Nome</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Telefone</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500">Cadastro</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-neutral-500 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
                 {paginatedClients.map((client) =>
                   editingId === client.id ? (
-                    <tr
-                      key={client.id}
-                      className="bg-neutral-800/50"
-                    >
+                    <tr key={client.id} className="bg-neutral-800/50">
                       <td className="px-6 py-3">
                         <input
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400"
+                          className={phoneInputClass}
                           autoFocus
                         />
                       </td>
                       <td className="px-6 py-3">
-                        <input
-                          type="text"
+                        <IMaskInput
+                          mask={PHONE_MASK}
+                          unmask
                           value={editPhone}
-                          onChange={(e) => setEditPhone(e.target.value)}
-                          className="h-9 w-full rounded-lg border border-emerald-500 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-emerald-400"
+                          onAccept={(value) => setEditPhone(value as string)}
+                          inputMode="numeric"
+                          placeholder="(00) 00000-0000"
+                          className={phoneInputClass}
                         />
                       </td>
-                      <td className="px-6 py-3 text-sm text-neutral-500">
-                        —
-                      </td>
+                      <td className="px-6 py-3 text-sm text-neutral-500">—</td>
                       <td className="px-6 py-3">
                         <div className="flex items-center justify-end space-x-2">
                           <button
@@ -318,9 +372,7 @@ export default function AdminClients() {
                       className="hover:bg-neutral-800/50 transition-colors"
                     >
                       <td className="px-6 py-4">
-                        <p className="text-sm font-bold text-white">
-                          {client.name}
-                        </p>
+                        <p className="text-sm font-bold text-white">{client.name}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-neutral-400">
                         {formatPhone(client.phone)}
@@ -375,12 +427,9 @@ export default function AdminClients() {
                 {Math.min(currentPage * itemsPerPage, filteredClients.length)}
               </span>{" "}
               de{" "}
-              <span className="font-bold text-white">
-                {filteredClients.length}
-              </span>{" "}
+              <span className="font-bold text-white">{filteredClients.length}</span>{" "}
               clientes
             </p>
-
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -394,9 +443,7 @@ export default function AdminClients() {
                 {currentPage} / {totalPages}
               </span>
               <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="flex items-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
               >
@@ -408,16 +455,74 @@ export default function AdminClients() {
         )}
       </main>
 
+      {/* Modal: Novo Cliente */}
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">Novo cliente</h3>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-neutral-500">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  placeholder="Nome do cliente"
+                  autoFocus
+                  className="h-10 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 text-sm text-white outline-none focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-neutral-500">
+                  Telefone
+                </label>
+                <IMaskInput
+                  mask={PHONE_MASK}
+                  unmask
+                  value={newPhone}
+                  onAccept={(value) => setNewPhone(value as string)}
+                  inputMode="numeric"
+                  placeholder="(00) 00000-0000"
+                  className="h-10 w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 text-sm text-white outline-none focus:border-emerald-500 transition-all"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex space-x-3">
+              <button
+                onClick={closeAdd}
+                disabled={adding}
+                className="flex-1 rounded-xl bg-neutral-700 py-3 text-sm font-bold text-neutral-300 hover:bg-neutral-600 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={adding}
+                className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                {adding ? (
+                  <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                ) : (
+                  "Adicionar"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar exclusão */}
       {confirmDeleteOpen && deletingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white">Confirmar exclusão</h3>
             <p className="mt-2 text-sm text-neutral-400">
               Tem certeza que deseja excluir o cliente{" "}
-              <span className="font-bold text-white">
-                {deletingClient.name}
-              </span>
-              ? Esta ação não pode ser desfeita.
+              <span className="font-bold text-white">{deletingClient.name}</span>? Esta
+              ação não pode ser desfeita.
             </p>
             <div className="mt-6 flex space-x-3">
               <button

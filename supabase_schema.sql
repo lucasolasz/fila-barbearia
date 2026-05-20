@@ -80,6 +80,8 @@ create table IF NOT EXISTS public.shop_settings (
   base_queue_time smallint null,
   max_queue_time text null,
   constraint shop_settings_pkey primary key (id),
+  is_lunch_paused boolean not null default false,
+  is_pre_opening boolean not null default false,
   constraint shop_settings_manual_status_check check (
     (
       manual_status = any (array['auto'::text, 'open'::text, 'closed'::text])
@@ -103,8 +105,36 @@ create table IF NOT EXISTS public.campaigns (
   constraint campaigns_pkey primary key (id)
 ) TABLESPACE pg_default;
 
--- Disable RLS for campaigns (admin-only access via service role)
-ALTER TABLE public.campaigns DISABLE ROW LEVEL SECURITY;
+-- 8. Row Level Security (RLS) Policies
+-- Pattern: RLS enabled + full_access policy ALL to anon (matches production)
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_customers" ON public.customers
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.queue ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_queue" ON public.queue
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_services" ON public.services
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.barbershop_schedule ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_schedule" ON public.barbershop_schedule
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.schedule_exceptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_schedule_exceptions" ON public.schedule_exceptions
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_shop_settings" ON public.shop_settings
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_campaigns" ON public.campaigns
+  FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- Enable Realtime for Queue table
 ALTER PUBLICATION supabase_realtime ADD TABLE queue;

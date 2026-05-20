@@ -22,10 +22,19 @@ import {
 } from "../hooks/useQueue";
 import { supabase } from "../lib/supabase";
 
-import { BARBER_SERVICES, DDD_OPTIONS, ServiceId } from "../constants/constants";
+import {
+  BARBER_SERVICES,
+  DDD_OPTIONS,
+  ServiceId,
+} from "../constants/constants";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
-import { getQueueId, getQueueCode, setQueueSession, clearQueueSession } from "../lib/storage";
+import {
+  getQueueId,
+  getQueueCode,
+  setQueueSession,
+  clearQueueSession,
+} from "../lib/storage";
 
 function generateCode(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -74,8 +83,15 @@ export default function Home() {
   const { isOpen, message, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
-  const { shopName, logoUrl, webhookUrl, trackingUrlBase, baseQueueTime } =
-    useShopSettings();
+  const {
+    shopName,
+    logoUrl,
+    webhookUrl,
+    trackingUrlBase,
+    baseQueueTime,
+    isLunchPaused,
+    isPreOpening,
+  } = useShopSettings();
   const [maxQueueTime, setMaxQueueTime] = useState("19:00");
 
   useEffect(() => {
@@ -104,7 +120,7 @@ export default function Home() {
       .select("id, status")
       .eq("id", storedQueueId)
       .maybeSingle()
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: { id: string; status: string } | null; error: { code: string } | null }) => {
         if (error && error.code !== "PGRST116") return;
         if (!data) {
           clearQueueSession();
@@ -128,9 +144,10 @@ export default function Home() {
       toast.error("Por favor, insira seu nome");
       return;
     }
-    const initial: ServiceId[][] = Array.from({ length: numberOfPeople }, () => [
-      "cabelo",
-    ]);
+    const initial: ServiceId[][] = Array.from(
+      { length: numberOfPeople },
+      () => ["cabelo"],
+    );
     setServicesPerPerson(initial);
     setDialogStep(0);
   };
@@ -215,6 +232,7 @@ export default function Home() {
       const { data: lastEntry, error: lastEntryError } = await supabase
         .from("queue")
         .select("position")
+        .in("status", ["waiting", "serving"])
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -279,7 +297,11 @@ export default function Home() {
       localStorage.setItem("barber_customer_name", name);
 
       webhookService.sendWebhook(
-        "JOINED",
+        isLunchPaused
+          ? "JOINED_IN_LUNCH"
+          : isPreOpening
+            ? "JOINED_IN_PRE_OPENING"
+            : "JOINED",
         queueEntry,
         queueCount + 1,
         queueCount,
@@ -316,7 +338,7 @@ export default function Home() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [queueCount]);
+  }, [queueCount, isLunchPaused, isPreOpening]);
   const isQueueFull =
     estimatedTimeStr !== "Agora" &&
     maxQueueTime &&
@@ -364,7 +386,7 @@ export default function Home() {
           </p>
         </div>
 
-        {!isOpen ? (
+        {!isOpen && !isPreOpening ? (
           <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30">
             <p className="font-medium">A barbearia está fechada no momento.</p>
             <p className="mt-1 text-sm opacity-90">{message}</p>
@@ -378,138 +400,170 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div className="space-y-6 text-left">
-              <div className="pt-2">
-                <label className="mb-2 block text-sm font-semibold text-neutral-300">
-                  Quantas pessoas vão cortar?
-                </label>
-                <select
-                  value={numberOfPeople}
-                  onChange={(e) => setNumberOfPeople(Number(e.target.value))}
-                  className="h-14 w-full appearance-none rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
-                >
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? "pessoa" : "pessoas"}
-                    </option>
-                  ))}
-                </select>
+          <>
+            {isLunchPaused && (
+              <div className="rounded-2xl bg-amber-900/20 p-4 text-amber-400 border border-amber-900/30">
+                <p className="font-medium">Estamos em pausa para o almoço.</p>
+                <p className="mt-1 text-sm opacity-90">
+                  Você pode entrar na fila e será atendido ao retornarmos.
+                </p>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-neutral-300">
-                  Seu Nome
-                </label>
-                <div className="relative">
-                  <User className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+            )}
+            {isPreOpening && (
+              <div className="rounded-2xl bg-blue-900/20 p-4 text-blue-400 border border-blue-900/30">
+                <p className="font-medium">Barbearia abrindo em breve.</p>
+                <p className="mt-1 text-sm opacity-90">
+                  Você já pode entrar na fila e quando o barbeiro chegar você
+                  receberá seu horário de atendimento.
+                </p>
+              </div>
+            )}
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="space-y-6 text-left">
+                <div className="pt-2">
+                  <label className="mb-2 block text-sm font-semibold text-neutral-300">
+                    Quantas pessoas vão cortar?
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={numberOfPeople}
+                      onChange={(e) =>
+                        setNumberOfPeople(Number(e.target.value))
+                      }
+                      className="h-14 w-full appearance-none rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+                    >
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? "pessoa" : "pessoas"}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
+                      <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-300">
+                    Seu Nome
+                  </label>
+                  <div className="relative">
+                    <User className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Digite seu nome completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="h-14 w-full rounded-xl border border-neutral-800 bg-neutral-900 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-2">
+                <div className="relative w-24 shrink-0">
+                  <select
+                    value={ddd}
+                    onChange={(e) => {
+                      setDdd(e.target.value);
+                    }}
+                    className="h-14 w-full appearance-none rounded-2xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+                  >
+                    {DDD_OPTIONS.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
+                    <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="relative flex-1">
+                  <Phone className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
                   <input
                     type="text"
-                    placeholder="Digite seu nome completo"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-14 w-full rounded-xl border border-neutral-800 bg-neutral-900 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+                    inputMode="numeric"
+                    placeholder="Número (ex: 999999999)"
+                    value={phone}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      if (val.length <= 9) {
+                        setPhone(val);
+                      }
+                    }}
+                    className="h-14 w-full rounded-2xl border border-neutral-800 bg-neutral-900 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none disabled"
                     required
                   />
+                  {phone && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhone("");
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-300"
+                    >
+                      <X className="h-7 w-7" />
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="flex space-x-2">
-              <div className="relative w-24 shrink-0">
-                <select
-                  value={ddd}
-                  onChange={(e) => {
-                    setDdd(e.target.value);
-                  }}
-                  className="h-14 w-full appearance-none rounded-2xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
+              <div className="flex items-center justify-center gap-2 rounded-full px-3 py-4 text-sm bg-yellow-900/30 text-yellow-400">
+                <CircleAlert className="text-sm" /> Você ainda não está na fila.
+                Veja a estimativa:
+                <ArrowDown className="text-sm" />
+              </div>
+
+              <div className="space-y-6 text-left">
+                <div
+                  className={`grid ${isLunchPaused || isPreOpening ? "grid-cols-1" : "grid-cols-2"} gap-3`}
                 >
-                  {DDD_OPTIONS.map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                  <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
-                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                  </svg>
+                  <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
+                    <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+                    <p className="text-xs font-bold uppercase text-yellow-400">
+                      Sua posição estimada
+                    </p>
+                    <p className="text-xl font-black text-white mt-2">
+                      {queueCount + 1}º
+                    </p>
+                  </div>
+                  {!isLunchPaused && !isPreOpening && (
+                    <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
+                      <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+                      <p className="text-xs font-bold uppercase text-yellow-400">
+                        Horário estimado
+                      </p>
+                      <p className="text-xl font-black text-white mt-2">
+                        {estimatedTimeStr}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="relative flex-1">
-                <Phone className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-neutral-400" />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Número (ex: 999999999)"
-                  value={phone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    if (val.length <= 9) {
-                      setPhone(val);
-                    }
-                  }}
-                  className="h-14 w-full rounded-2xl border border-neutral-800 bg-neutral-900 px-12 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none disabled"
-                  required
-                />
-                {phone && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhone("");
-                    }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-300"
-                  >
-                    <X className="h-7 w-7" />
-                  </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-4 group relative flex h-14 w-full items-center justify-center rounded-2xl text-lg font-semibold text-white shadow-none transition-all active:scale-[0.98] disabled:opacity-70 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <>
+                    Entrar na Fila
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </>
                 )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 rounded-full px-3 py-4 text-sm bg-yellow-900/30 text-yellow-400">
-              <CircleAlert className="text-sm" /> Você ainda não está na fila.
-              Veja a estimativa:
-              <ArrowDown className="text-sm" />
-            </div>
-
-            <div className="space-y-6 text-left">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
-                  <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-                  <p className="text-xs font-bold uppercase text-yellow-400">
-                    Sua posição estimada
-                  </p>
-                  <p className="text-xl font-black text-white mt-2">
-                    {queueCount + 1}º
-                  </p>
-                </div>
-                <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
-                  <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-                  <p className="text-xs font-bold uppercase text-yellow-400">
-                    Horário estimado
-                  </p>
-                  <p className="text-xl font-black text-white mt-2">
-                    {estimatedTimeStr}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-4 group relative flex h-14 w-full items-center justify-center rounded-2xl text-lg font-semibold text-white shadow-none transition-all active:scale-[0.98] disabled:opacity-70 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <>
-                  Entrar na Fila
-                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </>
-              )}
-            </button>
-          </form>
+              </button>
+            </form>
+          </>
         )}
 
         <div className="pt-8 text-xs text-neutral-400 uppercase tracking-widest">
@@ -586,7 +640,16 @@ export default function Home() {
                       >
                         {selected && <Check className="h-3 w-3 text-white" />}
                       </div>
-                      <span className="font-medium">{svc.label}</span>
+                      <div>
+                        <span className="font-medium">
+                          {svc.label}
+                          {svc.id === "cabelo" && (
+                            <span className="text-sm text-neutral-500">
+                              &nbsp;- Pezinho incluso
+                            </span>
+                          )}
+                        </span>
+                      </div>
                     </div>
                     <span className="text-sm text-neutral-400">
                       {svc.duration} min
@@ -606,18 +669,19 @@ export default function Home() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setDialogStep(null)}
+                onClick={() =>
+                  dialogStep > 0
+                    ? setDialogStep(dialogStep - 1)
+                    : setDialogStep(null)
+                }
                 className="flex-1 h-12 rounded-xl border border-neutral-700 text-neutral-300 font-medium transition-colors hover:bg-neutral-800"
               >
-                Cancelar
+                {dialogStep > 0 ? "Voltar" : "Cancelar"}
               </button>
               <button
                 type="button"
                 onClick={handleDialogNext}
-                disabled={
-                  loading ||
-                  servicesPerPerson[dialogStep].length === 0
-                }
+                disabled={loading || servicesPerPerson[dialogStep].length === 0}
                 className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-medium transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
                 {loading ? (

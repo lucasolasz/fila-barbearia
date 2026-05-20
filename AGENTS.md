@@ -2,7 +2,7 @@
 
 ## Visão Geral do Sistema
 
-Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in via app web.
+Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in via app web. Suporta múltiplas pessoas por entrada (convidados), modo almoço, modo pré-abertura e notificações automáticas via webhook (n8n → WhatsApp).
 
 ---
 
@@ -11,21 +11,30 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 ### 1. Home (`/`) — Entrada na Fila
 
 - URL: `https://www.doncabellone.com.br`
-- Campos: **Quantas pessoas vão cortar** (select 1–5, padrão 1), **Nome** e **Telefone**
+- Campos: **Quantas pessoas vão cortar** (select 1–5, padrão 1), **Nome** e **Telefone** (com máscara)
 - Informações exibidas abaixo dos campos: **posição estimada** e **horário estimado** (formato `"HH:mm"`)
+  - Horário estimado é **ocultado** quando `isLunchPaused === true`
 - Botão: "Entrar na fila"
-- Ao clicar, abre um **dialog multi-step de seleção de serviços** — um passo por pessoa
+- Ao clicar, abre **dialog multi-step de seleção de serviços** — um passo por pessoa
   - Cada passo exibe checkboxes: Cabelo (30min, padrão), Pezinho (10min), Barba (30min), Sobrancelha (5min)
-  - Botão "Próximo" avança entre passo; "Confirmar" no último submete
-- Ao confirmar, o sistema insere a entrada principal + entradas de convidados na fila, e envia webhook `JOINED`
+  - Botão "Próximo" avança entre passos; "Confirmar" no último submete
+- Ao confirmar, sistema insere entrada principal + entradas de convidados na fila e envia webhook:
+  - `JOINED_IN_LUNCH` se `isLunchPaused`
+  - `JOINED_IN_PRE_OPENING` se `isPreOpening`
+  - `JOINED` caso contrário
 
 ### 2. Queue (`/queue`) — Status na Fila
 
 - Exibe: **código da fila**, **posição na fila**
-- Horário estimado de atendimento: formato `"HH:mm"` arredondado para múltiplo de 5 min
+- Horário estimado: formato `"HH:mm"` arredondado para múltiplo de 5 min
+- Horário estimado ocultado em modo almoço
 - Botões: seguir no **Instagram**, chamar no **WhatsApp**
-- Botão: **sair da fila** — se o cliente tem convidados ativos (`parent_queue_id`), exibe diálogo com opções "Somente eu" e "Eu e os convidados"
+- Botão **sair da fila** — se cliente tem convidados ativos (`parent_queue_id`), exibe diálogo com opções "Somente eu" e "Eu e os convidados"
 - Webhooks de acompanhamento via n8n: NEXT, NEAR, UPDATE, DELAYED
+
+### 3. InService (`/in-service`)
+
+Tela exibida quando cliente está em atendimento (`status === "serving"`).
 
 ---
 
@@ -37,7 +46,7 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 |-------|------------|
 | `id` | UUID único |
 | `name` | Nome do cliente |
-| `phone` | Telefone (único) |
+| `phone` | Telefone (único). Convidados usam prefixo `manual_${timestamp}_${i}` |
 | `created_at` | Data de criação |
 
 ---
@@ -47,19 +56,20 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | Campo | Descrição |
 |-------|------------|
 | `id` | UUID único |
-| `customer_id` | Referência para cliente |
-| `code` | Código de 4-5 caracteres (ex: "1CMI6") |
-| `position` | **ID sequencial acumulativo** (100, 101, 102...). Usado para ordenação no banco. NÃO é a posição real na fila. |
-| `status` | "waiting", "serving", "completed", "cancelled" |
-| `service_duration` | **Duração total dos serviços selecionados em minutos** (ex: Cabelo+Barba = 60). Usado em cálculo de ETA. |
-| `parent_queue_id` | **FK → queue(id)**. Liga entradas de convidados ao responsável. NULL para clientes normais. |
+| `code` | Código de 5 caracteres alfanuméricos (ex: "1CMI6") |
+| `customer_id` | FK → `customers(id)` ON DELETE CASCADE |
+| `position` | Inteiro de ordenação. **NÃO é rank visual**. Próxima entrada = `max(position) entre status ('waiting','serving') + 1`. Quando fila esvazia, volta para 1. Usado para `order by` e drag/drop. |
+| `status` | `"waiting" \| "serving" \| "completed" \| "cancelled"` |
 | `created_at` | Data de entrada na fila |
 | `service_start` | Timestamp início do atendimento |
 | `service_end` | Timestamp fim do atendimento |
-| `notified_next` | Flag para evitar re-envio de webhook NEXT |
-| `notified_near` | Flag para evitar re-envio de webhook NEAR |
+| `service_duration` | **Duração total dos serviços selecionados em minutos** (ex: Cabelo+Barba = 60). Default 30. Usado no ETA. |
+| `selected_services` | `text[]` — IDs dos serviços (`cabelo`, `pezinho`, `barba`, `sobrancelha`). Default `'{}'`. Exibido no `QueueItemCard`. |
+| `parent_queue_id` | FK → `queue(id)`. Liga entrada de convidado ao responsável. NULL para clientes normais. |
+| `notified_next` | Flag dedupe webhook NEXT |
+| `notified_near` | Flag dedupe webhook NEAR |
 | `last_update_sent_at` | Timestamp do último webhook UPDATE |
-| `last_sent_eta` | Último ETA enviado |
+| `last_sent_eta` | Último ETA enviado em minutos. Setado na primeira observação **sem** enviar UPDATE (evita UPDATE redundante junto com JOINED) |
 | `last_delay_sent_at` | Timestamp do último webhook DELAYED |
 
 ---
@@ -69,7 +79,7 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | Campo | Descrição |
 |-------|------------|
 | `id` | UUID único |
-| `customer_id` | Referência para cliente |
+| `customer_id` | FK → `customers(id)` ON DELETE SET NULL |
 | `duration_minutes` | Duração do serviço em minutos |
 | `created_at` | Data de realização |
 
@@ -80,10 +90,10 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | Campo | Descrição |
 |-------|------------|
 | `id` | UUID único |
-| `weekday` | Dia da semana (0-6, sendo 0 = domingo) |
+| `weekday` | 0–6 (0 = domingo). UNIQUE |
 | `open_time` | Horário de abertura |
 | `close_time` | Horário de fechamento |
-| `is_closed` | Se o dia está fechado |
+| `is_closed` | Dia fechado |
 
 ---
 
@@ -92,10 +102,10 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | Campo | Descrição |
 |-------|------------|
 | `id` | UUID único |
-| `date` | Data específica |
+| `date` | Data específica. UNIQUE |
 | `open_time` | Horário de abertura |
 | `close_time` | Horário de fechamento |
-| `is_closed` | Se está fechado |
+| `is_closed` | Fechado |
 
 ---
 
@@ -104,59 +114,83 @@ Sistema de fila para barbearia com gerenciamento via dashboard admin e check-in 
 | Campo | Descrição |
 |-------|------------|
 | `id` | UUID único |
-| `manual_status` | "auto", "open", "closed" |
-| `whatsapp_number` | Número para contato |
-| `theme` | "light" ou "dark" |
+| `manual_status` | `"auto" \| "open" \| "closed"` |
+| `whatsapp_number` | Número de contato |
+| `theme` | `"light" \| "dark"` |
 | `shop_name` | Nome da barbearia |
 | `logo_url` | URL do logo |
-| `webhook_url` | URL do webhook para n8n |
+| `webhook_url` | URL do webhook n8n |
 | `tracking_url_base` | URL base para rastreamento |
-| `base_queue_time` | Tempo base por cliente (minutos) |
-| `max_queue_time` | Hora máxima para entrar na fila |
+| `base_queue_time` | Tempo base por cliente (fallback ETA, minutos) |
+| `max_queue_time` | Hora limite para entrar na fila |
+| `is_lunch_paused` | **boolean NOT NULL default false**. Pausa fila para almoço |
+| `is_pre_opening` | **boolean NOT NULL default false**. Modo pré-abertura (antes do `open_time`) |
+| `updated_at` | Timestamp |
+
+Realtime habilitado.
+
+---
+
+### 7. `campaigns`
+
+| Campo | Descrição |
+|-------|------------|
+| `id` | UUID único |
+| `title` | Título da campanha |
+| `message` | Mensagem (suporta `**negrito**`, `*itálico*`) |
+| `is_draft` | Rascunho ou enviada |
+| `selected_contact_ids` | `text[]` IDs dos contatos |
+| `recipient_count` | Quantidade de destinatários |
+| `created_at`, `updated_at` | Timestamps |
+
+RLS desabilitado (acesso admin via service role).
 
 ---
 
 ## Posição na Fila — Contagem Inclui "serving"
 
-**Regra fundamental**: A pessoa em atendimento (`status === "serving"`) é contada na posição da fila. Se alguém está sendo atendido, o próximo cliente na fila vê posição 2, não 1.
-
-Isso afeta todos os cálculos de posição no sistema:
+**Regra fundamental**: A pessoa em atendimento (`status === "serving"`) é contada na posição da fila. Se alguém está sendo atendido, próximo cliente vê posição 2, não 1.
 
 | Onde | Como calcula |
 |------|-------------|
-| `useQueueCount()` | Conta itens com `status in ["waiting", "serving"]`. Posição do novo cliente = `queueCount + 1` |
-| `QueueStatus.calculatePosition()` | Conta itens com `status in ["waiting", "serving"]` e `position < currentPosition`, depois `+1` |
-| `AdminDashboard` webhooks | `position = servingCount + waitingIndex + 1`, `peopleAhead = position - 1` |
-| `AdminDashboard` NEXT trigger | Dispara quando `position === servingCount + 1` (topo da fila de espera) |
-| `AdminDashboard` handleSaveOrder | Posições de "waiting" começam em `servingCount + 1` |
-| `normalizeQueuePositions()` | Serving items recebem as primeiras posições, waiting items em seguida |
+| `useQueueCount()` | Conta itens `status in ("waiting","serving")`. Posição do novo cliente = `queueCount + 1` |
+| `QueueStatus.calculatePosition()` | Conta itens `status in ("waiting","serving")` e `position < currentPosition`, depois `+1` |
+| `useWebhookNotifications` | `position = servingCount + waitingIndex + 1`, `peopleAhead = position - 1` |
+| NEXT trigger | Dispara quando `position === servingCount + 1` (topo da fila de espera) |
+| `normalizeQueuePositions()` | Serving items recebem primeiras posições, depois waiting |
 
 ---
 
 ## Webhooks
 
-O sistema envia webhooks POST para uma URL configurada em `shop_settings.webhook_url` (integração com n8n em `n8ndes.ltech.app.br`). O n8n processa o payload e envia **mensagens WhatsApp** ao cliente de forma automatizada.
+POST para URL configurada em `shop_settings.webhook_url` (n8n em `n8ndes.ltech.app.br`). n8n processa payload e envia **mensagens WhatsApp** automatizadas.
 
-### Eventos e Condições de Disparo
+### Eventos
 
-| Evento | Quando é enviado | Condições | Cooldown | Flag no banco |
-|--------|-----------------|-----------|----------|---------------|
-| `JOINED` | Cliente entra na fila | Imediato ao entrar (Home, Join, AddCustomerForm). **Não** é enviado se o telefone começa com `manual_` (cadastro admin sem telefone real) | Sem cooldown | Nenhuma |
-| `NEXT` | Cliente chega ao topo da fila de espera | `position === servingCount + 1` E `lastPos > servingCount + 1` (moveu de posição mais alta) E `notified_next === false` | One-time (flag) | `notified_next: true` |
-| `NEAR` | Cliente está próximo (`position <= 3`) | `position <= 3` E `lastPos > 3` (cruzou a barreira das 3 posições) E `notified_near === false` | One-time (flag) | `notified_near: true` |
-| `UPDATE` | Posição mudou e ETA mudou significativamente | Posição mudou E `\|ETA_novo - ETA_antigo\| >= 10min` E cooldown de 5min desde último UPDATE. Se `last_sent_eta === null`, dispara imediatamente | 5 min | `last_update_sent_at`, `last_sent_eta` |
-| `DELAYED` | Atendimento atual está com atraso | Existe item `serving` com `service_start` E `elapsed - 37 > 0` E `(elapsed - 37) % 10 === 0`. Enviado para cada item `waiting` individualmente | 5 min por item | `last_delay_sent_at` |
+| Evento | Quando | Condições | Cooldown | Flag |
+|--------|--------|-----------|----------|------|
+| `JOINED` | Cliente entra na fila em horário normal | Imediato no insert (Home, AddCustomerForm). **Não** envia se phone começa com `manual_` | — | — |
+| `JOINED_IN_LUNCH` | Cliente entra na fila durante `isLunchPaused` | Substitui `JOINED` quando flag ativa | — | — |
+| `JOINED_IN_PRE_OPENING` | Cliente entra na fila durante `isPreOpening` | Substitui `JOINED` quando flag ativa | — | — |
+| `LUNCH_START` | Admin ativa modo almoço | Loop por todos `waiting`+`serving` | — | — |
+| `LUNCH_END` | Admin desativa modo almoço | Loop por todos `waiting` | — | — |
+| `PRE_OPENING_START` | Admin ativa pré-abertura | Loop por todos `waiting`+`serving` | — | — |
+| `PRE_OPENING_END` | Admin desativa pré-abertura | Loop por todos `waiting` | — | — |
+| `NEXT` | Cliente chega ao topo da espera | `position === servingCount + 1` E `lastPos > servingCount + 1` E `!notified_next` | One-time | `notified_next` |
+| `NEAR` | Cliente próximo (posição ≤ 3) | `position <= 3` E `lastPos > 3` E `!notified_near` | One-time | `notified_near` |
+| `UPDATE` | Posição mudou e ETA mudou | `\|ETA_novo - ETA_antigo\| >= 10min` E cooldown 5min. **Não dispara junto com JOINED**: primeira observação seta `last_sent_eta` sem enviar | 5 min | `last_update_sent_at`, `last_sent_eta` |
+| `DELAYED` | Atendimento em atraso | `elapsed > service_duration` do serving. Enviado para cada `waiting` individualmente, cooldown 10min por item | 10 min/item | `last_delay_sent_at` |
 
-**Prioridade**: NEXT > NEAR > UPDATE. Se NEXT dispara, NEAR e UPDATE não disparam para o mesmo item na mesma verificação.
+**Prioridade entre NEXT/NEAR/UPDATE**: NEXT > NEAR > UPDATE. Se NEXT dispara, NEAR e UPDATE não disparam para o mesmo item na mesma verificação.
 
-**Importante**: O `position` enviado no webhook deve ser a **posição real na fila** (1, 2, 3...), não o ID sequencial do banco. A posição real inclui quem está sendo atendido.
+**Payload position**: rank ativo (`queueCount + 1`), nunca o campo DB `position`.
 
-### Payload do Webhook
+### Payload
 
 ```typescript
 {
   type: "QUEUE_UPDATE",
-  event: "JOINED" | "NEXT" | "NEAR" | "UPDATE" | "DELAYED",
+  event: WebhookEvent,
   user: { name: string, phone: string },  // phone com "55" prefixo
   queue: { position: number, peopleAhead: number, etaMinutes: number, estimatedWait: string },
   establishment: { name: string },
@@ -164,109 +198,125 @@ O sistema envia webhooks POST para uma URL configurada em `shop_settings.webhook
 }
 ```
 
-### Detalhes do DELAYED
+### DELAYED — detalhes
 
-- `elapsed = minutos desde service_start do item em atendimento`
-- `delayMinutes = elapsed - 37`
-- Dispara quando `delayMinutes > 0` e `delayMinutes % 10 === 0` (ou seja, nos minutos 47, 57, 67... de atendimento)
-- Cada item waiting recebe seu próprio webhook DELAYED, com cooldown de 5 min por item (`last_delay_sent_at`)
+- `elapsed = minutos desde service_start do serving`
+- `plannedDuration = serving.service_duration ?? 30`
+- Dispara apenas quando `elapsed > plannedDuration`
+- Loop por todos `waiting`; cada item recebe webhook com cooldown 10min próprio (`last_delay_sent_at`)
+- Verificação por intervalo de 1 min (`setInterval`)
+- Posição enviada: `itemPosition = i + 2` (1 = serving, espera começa em 2)
 
-### Detalhes do NEXT
+### NEXT — detalhes
 
-- Só dispara quando o cliente **moveu para** a posição `servingCount + 1` vindo de uma posição mais alta (`lastPos > servingCount + 1`)
-- Isso evita que NEXT dispare para quem acabou de entrar na fila diretamente no topo
-- Após envio com sucesso, seta `notified_next: true` no banco para evitar re-envio
+- Dispara só quando cliente **moveu para** `servingCount + 1` vindo de posição mais alta
+- Evita NEXT para quem entrou direto no topo
+- Após sucesso, seta `notified_next: true`
 
-### Detalhes do NEAR
+### NEAR — detalhes
 
-- Dispara quando o cliente cruza a barreira das 3 posições (de posição > 3 para <= 3)
-- NEXT tem prioridade sobre NEAR — se ambos se aplicaam, só NEXT é enviado
-- Após envio com sucesso, seta `notified_near: true` no banco
+- Cruza barreira das 3 posições (de >3 para ≤3)
+- NEXT prioritário se ambos aplicarem
+- Após sucesso, seta `notified_near: true`
 
-### Nota sobre AddCustomerForm
+### UPDATE — detalhes
 
-Quando o admin adiciona um cliente manualmente via `AddCustomerForm`, o webhook `JOINED` **não é enviado** se o telefone começa com `manual_` (caso em que o cliente não tem telefone real). Caso contrário, o webhook é enviado normalmente.
+- Dois caminhos: posição mudou (em `lastPos !== position`) ou ETA drift com posição constante
+- Primeira observação de item (`lastPos === undefined`): seta `last_sent_eta` no DB e **não** envia webhook — evita UPDATE redundante imediatamente após JOINED
+
+### Modo Almoço / Pré-Abertura
+
+- `LUNCH_START` / `PRE_OPENING_START`: enviado para todo `waiting`+`serving` ao ativar
+- `LUNCH_END` / `PRE_OPENING_END`: enviado para todo `waiting` ao desativar (`serving` exclui)
+- Ao desativar almoço, sistema **recalcula tempo médio** baseado no estado pós-almoço
+
+### AddCustomerForm — phone "manual_"
+
+Admin pode adicionar cliente manualmente. Se phone começa com `manual_`, webhook `JOINED*` **não é enviado**.
 
 ---
 
 ## Tempo Estimado de Serviço — Dinâmico por `service_duration`
 
-O ETA é calculado somando o campo `service_duration` real de cada entrada na fila (não mais média fixa).
+ETA = soma de `service_duration` real de cada entrada à frente (não média fixa).
 
 | Função | Comportamento |
 |--------|--------------|
-| `calculateEstimatedServiceTimeDynamic(pos)` | Busca todas as entradas ativas com `service_duration`. Soma as durações das entradas à frente. Retorna `"HH:mm"` (string única). |
-| `calculateEstimatedMinutes(pos)` | Mesma lógica; retorna minutos numéricos (para webhook `etaMinutes`). |
-| `calculateEstimatedServiceTime(pos, avgDuration?)` | Fallback estático síncrono; aceita `avgDuration` opcional (default 37). Retorna `"HH:mm"`. |
-| `useAverageServiceTime()` | Retorna `37` — usado apenas como fallback quando `service_duration` não está disponível. |
+| `calculateEstimatedServiceTimeDynamic(pos)` | Busca ativos com `service_duration`. Soma à frente. Retorna `"HH:mm"` |
+| `calculateEstimatedMinutes(pos)` | Mesma lógica, retorna minutos numéricos (para `etaMinutes`) |
+| `calculateEstimatedServiceTime(pos, avgDuration?)` | Fallback estático síncrono; default 37 |
+| `useAverageServiceTime()` | Retorna `37` — fallback quando `service_duration` ausente |
 
-**Fallback**: quando `service_duration` é `null` (entradas antigas antes da migration), assume 37min.
+**Fallback**: `service_duration` null → 30 min (default DB) ou 37 min (heurística antiga).
 
-### Arredondamento do Horário Estimado
+### Arredondamento
 
-O horário estimado é arredondado para o **múltiplo de 5 minutos mais próximo**. Exemplo: 9:47 → 9:45.
+Múltiplo de 5 min mais próximo. Exemplo: 9:47 → 9:45.
 
-### Formato do ETA
+### Formato
 
-Retorna string única `"HH:mm"` — não mais o intervalo `"HH:mm e HH:mm"`.
+String única `"HH:mm"` — não mais intervalo `"HH:mm e HH:mm"`.
+
+### Drift baseado em tempo
+
+Verificado em `useWebhookNotifications` mesmo quando posição não mudou (envia UPDATE se ETA drift ≥ 10min e cooldown OK).
 
 ---
 
 ## ETA — Não Contabilizar em Dobro o "serving"
 
-Ao calcular o ETA, o tempo do cliente em atendimento é calculado separadamente (`remainingCurrent`) e as pessoas na frente excluem quem já está sendo atendido:
-
 ```typescript
 const waitingAhead = Math.max(0, posicaoNaFila - 1 - servingCount);
-const shiftByMinutes = waitingAhead * avg;
 // totalMin = remainingCurrent + waitingAhead * avg
 ```
 
-Para posição 1 (próximo a ser atendido), o ETA considera apenas o tempo restante do atendimento atual, não soma um tempo completo extra.
+Para posição 1, ETA considera só `remainingCurrent` do atendimento atual.
 
 ---
 
-## Convidados (Múltiplas Pessoas na Fila)
+## Convidados (Múltiplas Pessoas)
 
 ### Padrão de criação
-- Responsável preenche nome/telefone + seleciona quantidade (1–5)
-- Ao confirmar os serviços, o sistema cria:
-  - 1 entrada normal para o responsável
-  - N entradas de convidados com `parent_queue_id = queueEntry.id`
+- Responsável preenche nome/telefone + quantidade (1–5)
+- Confirma serviços por pessoa
+- Sistema cria 1 entrada normal + N entradas com `parent_queue_id = queueEntry.id`
 
-### Identificação do convidado
+### Identificação
 | Campo | Valor |
 |---|---|
-| `customers.phone` | `manual_${Date.now()}_${i}` — prefixo `manual_` |
+| `customers.phone` | `manual_${Date.now()}_${i}` |
 | `customers.name` | `"Convidado de ${nome}"` |
-| `queue.parent_queue_id` | ID da entrada do responsável |
-| `queue.service_duration` | Calculado a partir dos serviços selecionados para aquele convidado |
+| `queue.parent_queue_id` | ID do responsável |
+| `queue.service_duration` | Calculado dos serviços daquele convidado |
+| `queue.selected_services` | Array dos IDs escolhidos |
 
-### Comportamento na dashboard (QueueItemCard)
-O prefixo `manual_` na phone já aciona comportamento existente:
-- Oculta número de telefone
+### Dashboard (QueueItemCard)
+Prefixo `manual_` aciona comportamento existente:
+- Oculta telefone
 - Oculta botão WhatsApp
-- Mantém botões "Iniciar atendimento" e "Excluir"
+- Mantém "Iniciar atendimento" e "Excluir"
+- Exibe ícone link para `parent_queue_id`
+- Exibe chips de `selected_services`
 
-### Saída da fila com convidados (QueueStatus)
-- Ao montar, consulta `queue WHERE parent_queue_id = queueId AND status IN ('waiting','serving')`
-- Se houver convidados: diálogo com "Somente eu" / "Eu e os convidados"
-- **Sem localStorage** — relação inteiramente via banco
+### Saída com convidados (QueueStatus)
+- Consulta `queue WHERE parent_queue_id = queueId AND status IN ('waiting','serving')`
+- Se há convidados: diálogo "Somente eu" / "Eu e os convidados"
+- **Sem localStorage** — relação 100% via DB
 
-### Webhooks e convidados
-- Webhook `JOINED` enviado apenas para o responsável
-- Convidados com `manual_` são filtrados automaticamente em todos os webhooks
+### Webhooks
+- `JOINED*` enviado só para responsável
+- Convidados com `manual_` filtrados em todos webhooks
 
 ---
 
 ## Serviços Disponíveis
 
-Definidos em `src/constants/constants.ts → BARBER_SERVICES`:
+`src/constants/constants.ts → BARBER_SERVICES`:
 
 | id | label | duration |
 |---|---|---|
 | cabelo | Cabelo | 30 min |
-| pezinho | Pezinho | 10 min |
+| pezinho | Só pezinho | 10 min |
 | barba | Barba | 30 min |
 | sobrancelha | Sobrancelha | 5 min |
 
@@ -274,58 +324,83 @@ Definidos em `src/constants/constants.ts → BARBER_SERVICES`:
 
 ---
 
-## Campos `position` vs Posição Real
+## Campo `position` — Detalhes
 
-O campo `position` no banco é usado para:
-- Ordenação no Supabase (`order("position", { ascending: true })`)
-- Eficiência em queries (`.lt("position", x)` mais rápido que datas)
-- Persistência de ordem se houver reorder manual
+`position` no DB é:
+- Chave de ordenação SQL (`order("position", { ascending: true })`)
+- Persistência de ordem após drag/drop manual
+- **Não é rank visual**
 
-**A posição real na fila é sempre calculada em runtime**, nunca lida diretamente do campo `position` do banco.
+### Cálculo do próximo `position`
 
-Cálculo da posição real:
-- Na Home/Join: `queueCount + 1` (onde `queueCount` inclui "waiting" e "serving")
-- No QueueStatus: contagem de itens com status "waiting" ou "serving" e `position < currentPosition`, +1
-- No AdminDashboard: `servingCount + waitingIndex + 1`
+Tanto `Home.tsx` quanto `AddCustomerForm.tsx`:
 
----
+```ts
+const { data: last } = await supabase
+  .from("queue")
+  .select("position")
+  .in("status", ["waiting", "serving"])   // filtra ativos
+  .order("position", { ascending: false })
+  .limit(1)
+  .maybeSingle();
+const nextPos = (last?.position || 0) + 1;
+```
 
-## AdminDashboard — Lógica de Notificações
+Filtro por status ativo garante que `position` reseta para 1 quando fila esvazia. Antes (sem filtro) crescia para sempre incluindo `completed`/`cancelled`.
 
-O AdminDashboard processa webhooks em tempo real para notificar clientes. Fluxo:
+### Rank visual sempre runtime
 
-1. Carrega todos os itens com status "waiting" ou "serving"
-2. Calcula posição real como `servingCount + waitingIndex + 1`
-3. Verifica flags `notified_next` e `notified_near` do banco
-4. Se conditions atendidas e flags false → envia webhook
-
-**Importante**: Não fazer reset automático das flags baseado apenas no `peopleAhead`. O reset só deve ocorrer em reorder manual (drag and drop).
-
----
-
-## AdminDashboard — Exibição no Card do Cliente
-
-Para cada item na fila, o card exibe:
-- Código, nome e telefone do cliente
-- **Horário de entrada na fila** (`created_at`) com segundos: `DD/MM/AA, HH:mm:ss`
-- **Horário de início do atendimento** (`service_start`) para itens com `status === "serving"`: `"Iniciou: HH:mm:ss"` em verde
+- Home: `queueCount + 1` (`queueCount` inclui `waiting`+`serving`)
+- QueueStatus: contagem ativos com `position < currentPosition` +1
+- AdminDashboard: `servingCount + waitingIndex + 1`
 
 ---
 
-## Decisões de Desenvolvimento
+## AdminDashboard — Notificações
 
-1. **Webhook position**: Usar `queueCount + 1` / `queueCount` (rank ativo), nunca `nextPosition` (sequência DB)
-2. **AddCustomerForm webhook**: Envia `queueCount + 1` em vez de `nextPos` (ID sequencial do banco)
-3. **Reset de notificações**: Removido reset automático que causava re-envio indevido ao abrir dashboard
-4. **Position no banco**: Mantido para ordenação e eficiência; posição real sempre calculada em runtime
-5. **Contagem inclui "serving"**: `useQueueCount()` conta `["waiting", "serving"]`, não apenas `"waiting"`
-6. **Tempo de serviço dinâmico**: calculado a partir de `queue.service_duration` por entrada (fallback: 37min)
-7. **Arredondamento de horário**: Múltiplo de **5min** mais próximo (função `roundToNearest5`)
-8. **ETA formato único**: Retorna `"HH:mm"` — não mais o intervalo `"HH:mm e HH:mm"`
-9. **ETA não duplica serving**: Tempo restante do atendimento atual é separado de `waitingAhead`
-10. **NEXT trigger**: Dispara quando `position === servingCount + 1` (topo da fila de espera)
-11. **Convidados via parent_queue_id**: Relação no banco, sem localStorage adicional
-12. **Schema**: Todas as tabelas documentadas em `supabase_schema.sql` — manter sincronizado
+`useWebhookNotifications` processa webhooks em tempo real:
+
+1. Carrega itens `waiting`+`serving`
+2. Calcula rank `servingCount + waitingIndex + 1`
+3. Verifica flags `notified_next` / `notified_near` no DB
+4. Verifica `last_sent_eta` / `last_update_sent_at` para UPDATE
+5. Se condições atendidas → envia webhook + atualiza flag/timestamp
+
+**Não há reset automático de flags** baseado em `peopleAhead`. Reset só em reorder manual (drag/drop).
+
+---
+
+## AdminDashboard — Card do Cliente (QueueItemCard)
+
+Por item exibe:
+- Código, nome, telefone (oculto se `manual_`)
+- **Horário de entrada** (`created_at`) com segundos: `DD/MM/AA, HH:mm:ss`
+- **Início do atendimento** (`service_start`) para `serving`: `"Iniciou: HH:mm:ss"` em verde
+- **Chips de serviços** (`selected_services`)
+- **Ícone link** se `parent_queue_id` (convidado)
+
+---
+
+## Modo Almoço e Pré-Abertura
+
+### Controle (AdminHeader)
+- Botões dedicados para alternar `is_lunch_paused` e `is_pre_opening`
+- Almoço só ativa com loja aberta
+- Pré-abertura só ativa em modo `auto` E loja fechada (antes do `open_time`)
+
+### Estado (useShopSettings)
+- Provê `isLunchPaused` e `isPreOpening`
+- Atualiza via realtime (`postgres_changes` em `shop_settings`)
+
+### Efeito no cliente
+- Home: oculta horário estimado durante `isLunchPaused`
+- QueueStatus: idem
+- Novo entrante recebe webhook `JOINED_IN_LUNCH` ou `JOINED_IN_PRE_OPENING`
+
+### Webhooks de transição
+- `LUNCH_START` / `PRE_OPENING_START`: notifica todos ativos
+- `LUNCH_END` / `PRE_OPENING_END`: notifica só `waiting`
+- Após `LUNCH_END`: recálculo do tempo médio
 
 ---
 
@@ -334,22 +409,33 @@ Para cada item na fila, o card exibe:
 ```
 src/
 ├── lib/
-│   ├── supabase.ts          # Cliente Supabase e tipos (Customer, QueueItem, Service, Schedule, ScheduleException, ShopSettings)
-│   └── storage.ts           # getQueueId(), setQueueSession(), clearQueueSession() — usa localStorage + cookies (8h)
+│   ├── supabase.ts          # Cliente + tipos (Customer, QueueItem, Service, Schedule, etc.)
+│   └── storage.ts           # getQueueId, setQueueSession, clearQueueSession (localStorage + cookies 8h)
 ├── hooks/
-│   ├── useQueue.ts         # Hooks de fila (contagem, tempo estimado, status da loja)
-│   └── useShopSettings.tsx # Configurações da loja (theme, shopName, logoUrl, etc)
+│   ├── useQueue.ts                  # useQueueCount, useEstimatedTime, useShopOpen, calculate*
+│   ├── useQueueActions.ts           # start/complete/remove + normalizeQueuePositions
+│   ├── useShopSettings.tsx          # context theme/shopName/logo/webhook/lunch/preOpening
+│   └── useWebhookNotifications.ts   # NEXT, NEAR, UPDATE, DELAYED com flags/cooldowns
 ├── services/
-│   └── webhookService.ts   # Serviço de webhooks (JOINED, NEAR, NEXT, UPDATE, DELAYED)
+│   └── webhookService.ts    # sendWebhook + testWebhook (todos eventos)
+├── components/admin/
+│   ├── AddCustomerForm.tsx          # Form admin com filtro de status na position
+│   ├── AddCustomerModal.tsx         # Wrapper modal
+│   ├── AdminHeader.tsx              # Botões almoço/pré-abertura/logout
+│   ├── LoginScreen.tsx
+│   ├── QueueItemCard.tsx            # Card individual + chips serviços + link parent
+│   ├── QueueList.tsx                # Lista drag/drop
+│   ├── RemoveConfirmModal.tsx
+│   └── StatsCards.tsx
 ├── pages/
-│   ├── Home.tsx            # Entrar na fila (dialog multi-step, múltiplas pessoas)
-│   ├── Join.tsx            # Entrar via código (alternativo)
-│   ├── QueueStatus.tsx     # Ver status na fila (saída com opção de remover convidados)
-│   ├── InService.tsx       # Tela quando cliente está em atendimento
-│   ├── AdminDashboard.tsx  # Painel admin (fila, notificações, controle)
-│   ├── AdminSettings.tsx   # Configurações da barbearia
-│   ├── AdminHistory.tsx    # Histórico de atendimentos
-│   └── AdminCampaigns.tsx  # Campanhas de WhatsApp
+│   ├── Home.tsx                     # Entrar na fila com filtro de status na position
+│   ├── QueueStatus.tsx              # Status + saída com convidados
+│   ├── InService.tsx                # Tela em atendimento
+│   ├── AdminDashboard.tsx           # Painel admin (toggle almoço/pré-abertura)
+│   ├── AdminSettings.tsx
+│   ├── AdminHistory.tsx
+│   ├── AdminClients.tsx
+│   └── AdminCampaigns.tsx
 └── constants/
     └── constants.ts        # DDDs, weekdays, BARBER_SERVICES, ServiceId
 ```
@@ -358,10 +444,10 @@ src/
 
 ## Campanhas de WhatsApp
 
-O AdminCampaigns envia campanhas para um webhook fixo:
-- URL: `https://n8ndes.ltech.app.br/webhook/campanha`
-- Tabelas: `campaigns` (campanhas enviadas) e `campaign_drafts` (rascunhos)
-- Formatação: `**texto**` = negrito, `*texto*` = itálico
+`AdminCampaigns`:
+- URL fixa: `https://n8ndes.ltech.app.br/webhook/campanha`
+- Tabela única `campaigns` com `is_draft`
+- Formatação: `**negrito**`, `*itálico*`
 
 ---
 
@@ -369,24 +455,54 @@ O AdminCampaigns envia campanhas para um webhook fixo:
 
 ```typescript
 Customer { id, name, phone, created_at }
-QueueItem { id, code, customer_id, position, status, created_at, service_start?, service_end?, customer?, service_duration?, parent_queue_id?, notified_near?, notified_next?, last_update_sent_at?, last_sent_eta?, last_delay_sent_at? }
+
+QueueItem {
+  id, code, customer_id, position, status, created_at,
+  service_start?, service_end?, customer?,
+  service_duration?, parent_queue_id?, selected_services?,
+  notified_near?, notified_next?,
+  last_update_sent_at?, last_sent_eta?, last_delay_sent_at?
+}
+
+Campaign { id, title, message, is_draft, selected_contact_ids, recipient_count, created_at, updated_at }
 Service { id, customer_id, duration_minutes, created_at }
 Schedule { id, weekday, open_time, close_time, is_closed }
 ScheduleException { id, date, open_time, close_time, is_closed }
-ShopSettings { id, manual_status, whatsapp_number, theme, shop_name, logo_url, webhook_url?, tracking_url_base?, base_queue_time?, max_queue_time? }
+ShopSettings {
+  id, manual_status, whatsapp_number, theme, shop_name, logo_url,
+  webhook_url?, tracking_url_base?, base_queue_time?, max_queue_time?,
+  is_lunch_paused, is_pre_opening
+}
 ```
+
+---
+
+## Decisões de Desenvolvimento
+
+1. **Webhook position**: rank ativo (`queueCount + 1`), nunca campo DB `position`
+2. **`position` reseta com fila vazia**: max calculado só entre `waiting`+`serving` (filtro `.in("status", […])` em `Home.tsx:232` e `AddCustomerForm.tsx:70`)
+3. **Reset de notificações**: removido reset automático que causava re-envio indevido ao abrir dashboard
+4. **Position no banco**: mantido para `order by` + drag/drop; rank sempre runtime
+5. **Contagem inclui "serving"**: `useQueueCount()` conta `["waiting","serving"]`
+6. **Tempo de serviço dinâmico**: soma de `queue.service_duration` por entrada (fallback 37min ou 30min)
+7. **Arredondamento**: múltiplo de 5 min mais próximo (`roundToNearest5`)
+8. **ETA formato único**: `"HH:mm"` — não mais intervalo
+9. **ETA não duplica serving**: `remainingCurrent` separado de `waitingAhead`
+10. **NEXT trigger**: `position === servingCount + 1` (topo da espera)
+11. **Convidados via parent_queue_id**: relação no banco, sem localStorage
+12. **Modo almoço/pré-abertura**: flags em `shop_settings`, webhooks dedicados (`*_START`, `*_END`, `JOINED_IN_*`)
+13. **UPDATE não acompanha JOINED**: primeira observação seta `last_sent_eta` sem enviar webhook
+14. **Almoço só com loja aberta; pré-abertura só em auto + loja fechada**
+15. **Recalcula ETA após LUNCH_END**
+16. **Schema**: todas tabelas em `supabase_schema.sql` — manter sincronizado
 
 ---
 
 ## Comandos Úteis
 
 ```bash
-# Verificar lint
-npm run lint
-
-# Verificar build
-npm run build
-
-# Verificar erros TypeScript
-npm run typecheck
+npm run lint        # ESLint
+npm run build       # Build (verifica erros)
+npm run typecheck   # TypeScript only
+npx tsc --noEmit    # idem
 ```
