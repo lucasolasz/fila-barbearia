@@ -517,7 +517,7 @@ export default function Home() {
               </div>
 
               <div className="space-y-6 text-left">
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid ${isLunchPaused ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
                   <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
                     <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
                     <p className="text-xs font-bold uppercase text-yellow-400">
@@ -527,19 +527,17 @@ export default function Home() {
                       {queueCount + 1}º
                     </p>
                   </div>
-                  <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
-                    <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-                    <p className="text-xs font-bold uppercase text-yellow-400">
-                      Horário estimado
-                    </p>
-                    <p className="text-xl font-black text-white mt-2">
-                      {isPreOpening
-                        ? "Em breve"
-                        : isLunchPaused && estimatedTimeStr === "Agora"
-                          ? "A confirmar"
-                          : estimatedTimeStr}
-                    </p>
-                  </div>
+                  {!isLunchPaused && (
+                    <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
+                      <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+                      <p className="text-xs font-bold uppercase text-yellow-400">
+                        Horário estimado
+                      </p>
+                      <p className="text-xl font-black text-white mt-2">
+                        {isPreOpening ? "Em breve" : estimatedTimeStr}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
