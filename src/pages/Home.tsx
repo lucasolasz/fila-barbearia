@@ -296,7 +296,7 @@ export default function Home() {
       localStorage.setItem("barber_customer_name", name);
 
       webhookService.sendWebhook(
-        "JOINED",
+        isLunchPaused ? "JOINED_IN_LUNCH" : "JOINED",
         queueEntry,
         queueCount + 1,
         queueCount,

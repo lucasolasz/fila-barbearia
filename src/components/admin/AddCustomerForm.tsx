@@ -19,7 +19,7 @@ export default function AddCustomerForm({ onClose, onSuccess }: AddCustomerFormP
   const [loading, setLoading] = useState(false);
 
   const queueCount = useQueueCount();
-  const { shopName, webhookUrl, trackingUrlBase, baseQueueTime } =
+  const { shopName, webhookUrl, trackingUrlBase, baseQueueTime, isLunchPaused } =
     useShopSettings();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,7 +120,7 @@ export default function AddCustomerForm({ onClose, onSuccess }: AddCustomerFormP
       const currentBaseTime = baseQueueTime == null ? 30 : baseQueueTime;
       if (!cleanPhone.startsWith("manual_")) {
         webhookService.sendWebhook(
-          "JOINED",
+          isLunchPaused ? "JOINED_IN_LUNCH" : "JOINED",
           queueEntry,
           queueCount + 1,
           peopleAhead,
