@@ -69,7 +69,8 @@ export default function AddCustomerForm({ onClose, onSuccess }: AddCustomerFormP
 
       const { data: last, error: lastError } = await supabase
         .from("queue")
-        .select("position, code")
+        .select("position")
+        .in("status", ["waiting", "serving"])
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();

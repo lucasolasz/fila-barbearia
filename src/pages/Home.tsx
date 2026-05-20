@@ -232,6 +232,7 @@ export default function Home() {
       const { data: lastEntry, error: lastEntryError } = await supabase
         .from("queue")
         .select("position")
+        .in("status", ["waiting", "serving"])
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
