@@ -65,6 +65,7 @@ export type QueueItem = {
   service_duration?: number;
   parent_queue_id?: string;
   selected_services?: string[];
+  is_manual?: boolean;
   notified_near?: boolean;
   notified_next?: boolean;
   last_update_sent_at?: string;

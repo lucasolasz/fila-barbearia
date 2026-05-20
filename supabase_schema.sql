@@ -28,6 +28,7 @@ create table IF NOT EXISTS public.queue (
   service_duration integer null default 30,
   parent_queue_id uuid null,
   selected_services text[] null default '{}'::text[],
+  is_manual boolean null default false,
   last_delay_sent_at timestamp with time zone null,
   constraint queue_pkey primary key (id),
   constraint queue_customer_id_fkey foreign KEY (customer_id) references customers (id) on delete CASCADE,

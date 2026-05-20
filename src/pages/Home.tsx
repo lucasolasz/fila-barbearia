@@ -1,7 +1,6 @@
 import {
   ArrowDown,
   ArrowRight,
-  Check,
   CircleAlert,
   Clock,
   Loader2,
@@ -23,13 +22,12 @@ import {
 import { sanitizeNameInput } from "../lib/nameUtils";
 import { supabase } from "../lib/supabase";
 
-import {
-  BARBER_SERVICES,
-  DDD_OPTIONS,
-  ServiceId,
-} from "../constants/constants";
+import { DDD_OPTIONS, ServiceId } from "../constants/constants";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
+import ServiceSelectionDialog, {
+  calculatePersonDuration,
+} from "../components/ServiceSelectionDialog";
 import {
   getQueueId,
   getQueueCode,
@@ -54,13 +52,6 @@ function generateCode(): string {
     .split("")
     .sort(() => Math.random() - 0.5)
     .join("");
-}
-
-function calculatePersonDuration(services: ServiceId[]): number {
-  return services.reduce((sum, id) => {
-    const svc = BARBER_SERVICES.find((s) => s.id === id);
-    return sum + (svc?.duration ?? 0);
-  }, 0);
 }
 
 export default function Home() {
@@ -573,129 +564,21 @@ export default function Home() {
       </motion.div>
 
       {dialogStep !== null && servicesPerPerson[dialogStep] !== undefined && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setDialogStep(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setDialogStep(null);
-          }}
-          tabIndex={-1}
-          autoFocus
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-sm rounded-2xl bg-neutral-900 p-6 border border-neutral-800"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-xs text-neutral-500">
-                {dialogStep + 1} de {numberOfPeople}
-              </p>
-              <button
-                type="button"
-                onClick={() => setDialogStep(null)}
-                className="text-neutral-500 hover:text-neutral-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <h3 className="mb-1 text-lg font-semibold text-white">
-              Serviços para:{" "}
-              <span className="text-emerald-400">
-                {dialogStep === 0 ? name : `Convidado ${dialogStep}`}
-              </span>
-            </h3>
-            <p className="mb-4 text-xs text-neutral-500">
-              Selecione os serviços desejados
-            </p>
-
-            <div className="space-y-2 mb-4">
-              {BARBER_SERVICES.map((svc) => {
-                const selected = servicesPerPerson[dialogStep].includes(
-                  svc.id as ServiceId,
-                );
-                return (
-                  <button
-                    key={svc.id}
-                    type="button"
-                    onClick={() =>
-                      toggleService(dialogStep, svc.id as ServiceId)
-                    }
-                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-all ${
-                      selected
-                        ? "border-emerald-500 bg-emerald-900/20 text-emerald-400"
-                        : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-5 w-5 items-center justify-center rounded border ${
-                          selected
-                            ? "border-emerald-500 bg-emerald-500"
-                            : "border-neutral-600"
-                        }`}
-                      >
-                        {selected && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      <div>
-                        <span className="font-medium">
-                          {svc.label}
-                          {svc.id === "cabelo" && (
-                            <span className="text-sm text-neutral-500">
-                              &nbsp;- Pezinho incluso
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-sm text-neutral-400">
-                      {svc.duration} min
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mb-4 flex items-center justify-between rounded-xl bg-neutral-800 px-4 py-2">
-              <span className="text-sm text-neutral-400">Tempo total</span>
-              <span className="font-bold text-white">
-                {calculatePersonDuration(servicesPerPerson[dialogStep])} min
-              </span>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  dialogStep > 0
-                    ? setDialogStep(dialogStep - 1)
-                    : setDialogStep(null)
-                }
-                className="flex-1 h-12 rounded-xl border border-neutral-700 text-neutral-300 font-medium transition-colors hover:bg-neutral-800"
-              >
-                {dialogStep > 0 ? "Voltar" : "Cancelar"}
-              </button>
-              <button
-                type="button"
-                onClick={handleDialogNext}
-                disabled={loading || servicesPerPerson[dialogStep].length === 0}
-                className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-medium transition-colors hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                ) : dialogStep < numberOfPeople - 1 ? (
-                  "Próximo"
-                ) : (
-                  "Confirmar"
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
+        <ServiceSelectionDialog
+          personName={dialogStep === 0 ? name : `Convidado ${dialogStep}`}
+          personIndex={dialogStep}
+          totalPeople={numberOfPeople}
+          selectedServices={servicesPerPerson[dialogStep]}
+          loading={loading}
+          onToggle={(id) => toggleService(dialogStep, id)}
+          onDismiss={() => setDialogStep(null)}
+          onBack={() =>
+            dialogStep > 0
+              ? setDialogStep(dialogStep - 1)
+              : setDialogStep(null)
+          }
+          onNext={handleDialogNext}
+        />
       )}
     </div>
   );

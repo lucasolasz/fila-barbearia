@@ -22,3 +22,10 @@ SET name = TRIM(name)
 WHERE name <> TRIM(name);
 
 COMMIT;
+
+
+-- =====================================
+-- Migração 20/05/2026 — Coluna is_manual na tabela queue
+-- =====================================
+ALTER TABLE public.queue
+  ADD COLUMN IF NOT EXISTS is_manual boolean default false;

@@ -70,6 +70,11 @@ const QueueItemCard = forwardRef<HTMLDivElement, QueueItemCardProps>(
                   convidado
                 </span>
               )}
+              {item.is_manual && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300 ring-1 ring-amber-500/60 bg-amber-950/60 shadow-[0_0_6px_rgba(245,158,11,0.5)]">
+                  manual
+                </span>
+              )}
             </div>
             {item.customer?.phone &&
               !item.customer.phone.startsWith("manual_") && (
