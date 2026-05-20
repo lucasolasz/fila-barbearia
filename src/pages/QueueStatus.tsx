@@ -45,7 +45,7 @@ export default function QueueStatus() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [position, isLunchPaused]);
+  }, [position, isLunchPaused, isPreOpening]);
 
   useEffect(() => {
     let mounted = true;
@@ -266,7 +266,7 @@ export default function QueueStatus() {
                 </div>
               )}
               <div
-                className={`grid ${peopleAhead > 0 && !isLunchPaused ? "grid-cols-2" : "grid-cols-1"} gap-4`}
+                className={`grid ${peopleAhead > 0 && !isLunchPaused && !isPreOpening ? "grid-cols-2" : "grid-cols-1"} gap-4`}
               >
                 <div className="rounded-2xl bg-neutral-800 p-2 text-center border border-neutral-700">
                   <Users className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
@@ -277,7 +277,7 @@ export default function QueueStatus() {
                     {position}
                   </p>
                 </div>
-                {peopleAhead > 0 && !isLunchPaused && (
+                {peopleAhead > 0 && !isLunchPaused && !isPreOpening && (
                   <div className="rounded-2xl bg-neutral-800 p-4 text-center border border-neutral-700">
                     <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase text-neutral-500">

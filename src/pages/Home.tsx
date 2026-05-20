@@ -296,7 +296,11 @@ export default function Home() {
       localStorage.setItem("barber_customer_name", name);
 
       webhookService.sendWebhook(
-        isLunchPaused ? "JOINED_IN_LUNCH" : "JOINED",
+        isLunchPaused
+          ? "JOINED_IN_LUNCH"
+          : isPreOpening
+            ? "JOINED_IN_PRE_OPENING"
+            : "JOINED",
         queueEntry,
         queueCount + 1,
         queueCount,
@@ -333,7 +337,7 @@ export default function Home() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [queueCount, isLunchPaused]);
+  }, [queueCount, isLunchPaused, isPreOpening]);
   const isQueueFull =
     estimatedTimeStr !== "Agora" &&
     maxQueueTime &&
@@ -408,8 +412,8 @@ export default function Home() {
               <div className="rounded-2xl bg-blue-900/20 p-4 text-blue-400 border border-blue-900/30">
                 <p className="font-medium">Barbearia abrindo em breve.</p>
                 <p className="mt-1 text-sm opacity-90">
-                  Você já pode entrar na fila e será atendido quando o barbeiro
-                  chegar.
+                  Você já pode entrar na fila e quando o barbeiro chegar você
+                  receberá seu horário de atendimento.
                 </p>
               </div>
             )}
@@ -517,7 +521,9 @@ export default function Home() {
               </div>
 
               <div className="space-y-6 text-left">
-                <div className={`grid ${isLunchPaused ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+                <div
+                  className={`grid ${isLunchPaused || isPreOpening ? "grid-cols-1" : "grid-cols-2"} gap-3`}
+                >
                   <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
                     <Users className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
                     <p className="text-xs font-bold uppercase text-yellow-400">
@@ -527,14 +533,14 @@ export default function Home() {
                       {queueCount + 1}º
                     </p>
                   </div>
-                  {!isLunchPaused && (
+                  {!isLunchPaused && !isPreOpening && (
                     <div className="rounded-xl bg-neutral-900 p-4 text-center border border-neutral-800 shadow-sm">
                       <Clock className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
                       <p className="text-xs font-bold uppercase text-yellow-400">
                         Horário estimado
                       </p>
                       <p className="text-xl font-black text-white mt-2">
-                        {isPreOpening ? "Em breve" : estimatedTimeStr}
+                        {estimatedTimeStr}
                       </p>
                     </div>
                   )}
