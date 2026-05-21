@@ -68,17 +68,17 @@ export default function AdminDashboard() {
   }, []);
 
   const playWaitingAlertSound = useCallback(() => {
-    const audio = new Audio("/atencao.mp3");
-    audio
-      .play()
-      .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
+    // const audio = new Audio("/atencao.mp3");
+    // audio
+    //   .play()
+    //   .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
   }, []);
 
   const playServingTimeoutSound = useCallback(() => {
-    const audio = new Audio("/atencao.mp3");
-    audio
-      .play()
-      .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
+    // const audio = new Audio("/atencao.mp3");
+    // audio
+    //   .play()
+    //   .catch((err) => console.warn("Áudio bloqueado pelo navegador:", err));
   }, []);
 
   const fetchQueue = useCallback(async () => {
