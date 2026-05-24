@@ -211,20 +211,34 @@ export default function AdminDashboard() {
     const check = () => {
       const q = queueRef.current;
       const now = Date.now();
+      const FIVE_MIN = 5 * 60 * 1000;
 
-      const cond1 = q.length > 0 && !q.some((i) => i.status === "serving");
+      const waitingItems = q.filter((i) => i.status === "waiting");
+      const hasServing = q.some((i) => i.status === "serving");
+      const cond1 = waitingItems.length > 0 && !hasServing;
+
+      const oldestWaitingTs = waitingItems.reduce((min, i) => {
+        const t = new Date(i.created_at).getTime();
+        return t < min ? t : min;
+      }, Infinity);
+      const waitingAgeMs = Number.isFinite(oldestWaitingTs)
+        ? now - oldestWaitingTs
+        : 0;
+
       const s1 = waitingAlert.current;
-      const trigger1 = cond1 && (!s1.active || now - s1.lastAt >= 5 * 60 * 1000);
+      const trigger1 =
+        cond1 && waitingAgeMs >= FIVE_MIN && now - s1.lastAt >= FIVE_MIN;
       if (trigger1) {
         playWaitingAlertSound();
-        const firstWaiting = q.find((i) => i.status === "waiting");
+        const firstWaiting = [...waitingItems].sort(
+          (a, b) => a.position - b.position,
+        )[0];
         if (firstWaiting && webhookUrl) {
-          const waitingCount = q.filter((i) => i.status === "waiting").length;
           webhookService.sendWebhook(
             "BARBER_ALERT_NO_SERVICE",
             firstWaiting,
             firstWaiting.position,
-            waitingCount - 1,
+            waitingItems.length - 1,
             baseQueueTime ?? 30,
             shopName,
             webhookUrl,
