@@ -11,6 +11,7 @@ interface Params {
   webhookUrl: string | null;
   trackingUrlBase: string | null;
   isPreOpening: boolean;
+  isLunchPaused: boolean;
 }
 
 export function useWebhookNotifications({
@@ -21,6 +22,7 @@ export function useWebhookNotifications({
   webhookUrl,
   trackingUrlBase,
   isPreOpening,
+  isLunchPaused,
 }: Params) {
   const notifiedPositionMap = useRef<Map<string, number>>(new Map());
   const processingWebhooksRef = useRef(false);
@@ -30,6 +32,7 @@ export function useWebhookNotifications({
     if (
       !isAuthenticated ||
       isPreOpening ||
+      isLunchPaused ||
       queue.length === 0 ||
       processingWebhooksRef.current
     )
@@ -201,10 +204,10 @@ export function useWebhookNotifications({
     };
 
     processWebhooks();
-  }, [queue, isAuthenticated, baseQueueTime, shopName, webhookUrl, trackingUrlBase, isPreOpening]);
+  }, [queue, isAuthenticated, baseQueueTime, shopName, webhookUrl, trackingUrlBase, isPreOpening, isLunchPaused]);
 
   useEffect(() => {
-    if (!isAuthenticated || !webhookUrl || isPreOpening) return;
+    if (!isAuthenticated || !webhookUrl || isPreOpening || isLunchPaused) return;
 
     const checkDelays = async () => {
       if (processingDelayRef.current) return;
@@ -264,5 +267,5 @@ export function useWebhookNotifications({
     checkDelays();
     const interval = setInterval(checkDelays, 60 * 1000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, queue, baseQueueTime, shopName, webhookUrl, trackingUrlBase, isPreOpening]);
+  }, [isAuthenticated, queue, baseQueueTime, shopName, webhookUrl, trackingUrlBase, isPreOpening, isLunchPaused]);
 }

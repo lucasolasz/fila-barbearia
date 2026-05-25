@@ -319,7 +319,7 @@ export default function Home() {
   const [estimatedTimeStr, setEstimatedTimeStr] = useState("Agora");
 
   useEffect(() => {
-    if (isPreOpening) {
+    if (isPreOpening || isLunchPaused) {
       setEstimatedTimeStr("");
       return;
     }

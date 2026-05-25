@@ -16,6 +16,7 @@ interface QueueItemCardProps {
   onRemove: (id: string) => void;
   isProcessing: boolean;
   isPreOpening?: boolean;
+  isLunchPaused?: boolean;
 }
 
 const QueueItemCard = forwardRef<HTMLDivElement, QueueItemCardProps>(
@@ -32,6 +33,7 @@ const QueueItemCard = forwardRef<HTMLDivElement, QueueItemCardProps>(
       onRemove,
       isProcessing,
       isPreOpening = false,
+      isLunchPaused = false,
       ...rest
     },
     ref,
@@ -157,7 +159,7 @@ const QueueItemCard = forwardRef<HTMLDivElement, QueueItemCardProps>(
               <Check className="h-6 w-6" />
             </button>
           )}
-          {item.status === "waiting" && !isPreOpening && (
+          {item.status === "waiting" && !isPreOpening && !isLunchPaused && (
             <button
               onClick={() => onStartService(item)}
               disabled={isProcessing}

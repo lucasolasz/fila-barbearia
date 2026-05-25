@@ -179,11 +179,11 @@ export default function AdminDashboard() {
       setEstimatedTimes({});
       return;
     }
-    if (isPreOpening) {
+    if (isPreOpening || isLunchPaused) {
       const map: Record<string, string> = {};
+      const label = isPreOpening ? "Aguardando abertura" : "Aguardando retorno do almoço";
       for (const item of queue) {
-        map[item.id] =
-          item.status === "serving" ? "Agora" : "Aguardando abertura";
+        map[item.id] = item.status === "serving" ? "Agora" : label;
       }
       setEstimatedTimes(map);
       return;
@@ -205,7 +205,7 @@ export default function AdminDashboard() {
       }
     }
     setEstimatedTimes(map);
-  }, [queue, isPreOpening]);
+  }, [queue, isPreOpening, isLunchPaused]);
 
   // Sound alerts — ref-based to avoid timer reset on every queue update
   const queueRef = useRef(queue);
@@ -320,6 +320,7 @@ export default function AdminDashboard() {
     webhookUrl,
     trackingUrlBase,
     isPreOpening,
+    isLunchPaused,
   });
 
   // Queue CRUD actions
@@ -560,6 +561,7 @@ export default function AdminDashboard() {
           onAddCustomer={() => setShowAddModal(true)}
           loading={loading}
           isPreOpening={isPreOpening}
+          isLunchPaused={isLunchPaused}
         />
       </main>
 
