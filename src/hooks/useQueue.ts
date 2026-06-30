@@ -41,7 +41,7 @@ export function useShopStatus() {
           .from("schedule_exceptions")
           .select("*")
           .eq("date", todayStr)
-          .single();
+          .maybeSingle();
 
         if (exception) {
           if (exception.is_closed) {
