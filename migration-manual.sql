@@ -29,3 +29,10 @@ COMMIT;
 -- =====================================
 ALTER TABLE public.queue
   ADD COLUMN IF NOT EXISTS is_manual boolean default false;
+
+
+-- =====================================
+-- Migração 30/06/2026 — Pré-abertura automática (minutos antes da abertura)
+-- =====================================
+ALTER TABLE public.shop_settings
+  ADD COLUMN IF NOT EXISTS pre_opening_minutes smallint not null default 0;

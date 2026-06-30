@@ -83,6 +83,7 @@ create table IF NOT EXISTS public.shop_settings (
   constraint shop_settings_pkey primary key (id),
   is_lunch_paused boolean not null default false,
   is_pre_opening boolean not null default false,
+  pre_opening_minutes smallint not null default 0,
   constraint shop_settings_manual_status_check check (
     (
       manual_status = any (array['auto'::text, 'open'::text, 'closed'::text])

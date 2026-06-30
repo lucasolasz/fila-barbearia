@@ -117,4 +117,5 @@ export type ShopSettings = {
   updated_at: string;
   is_lunch_paused?: boolean;
   is_pre_opening?: boolean;
+  pre_opening_minutes?: number;
 };
