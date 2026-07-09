@@ -5,6 +5,7 @@ import { format, getDay, parseISO, addMinutes } from "date-fns";
 export function useShopStatus() {
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
   const [message, setMessage] = useState<string>("");
+  const [closeTime, setCloseTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export function useShopStatus() {
               "A barbearia está fechada manualmente pelo administrador.",
             );
           }
+          setCloseTime(null);
           setLoading(false);
           return;
         }
@@ -46,12 +48,14 @@ export function useShopStatus() {
         if (exception) {
           if (exception.is_closed) {
             setIsOpen(false);
+            setCloseTime(null);
             setMessage(
               "A barbearia está fechada hoje devido a um feriado ou evento especial.",
             );
           } else if (exception.open_time && exception.close_time) {
             const open = exception.open_time;
             const close = exception.close_time;
+            setCloseTime(close);
             if (currentTime >= open && currentTime <= close) {
               setIsOpen(true);
             } else {
@@ -72,10 +76,12 @@ export function useShopStatus() {
           if (schedule) {
             if (schedule.is_closed) {
               setIsOpen(false);
+              setCloseTime(null);
               setMessage("A barbearia está fechada hoje.");
             } else if (schedule.open_time && schedule.close_time) {
               const open = schedule.open_time;
               const close = schedule.close_time;
+              setCloseTime(close);
               if (currentTime >= open && currentTime <= close) {
                 setIsOpen(true);
               } else {
@@ -87,10 +93,12 @@ export function useShopStatus() {
             } else {
               // Schedule exists but no times set
               setIsOpen(true);
+              setCloseTime(null);
             }
           } else {
             // No schedule found for today, default to open so app is usable
             setIsOpen(true);
+            setCloseTime(null);
             if (schedError) {
               console.warn(
                 "Schedule table might not be initialized:",
@@ -122,7 +130,7 @@ export function useShopStatus() {
     };
   }, []);
 
-  return { isOpen, message, loading };
+  return { isOpen, message, closeTime, loading };
 }
 
 function roundToNearest5(date: Date): Date {

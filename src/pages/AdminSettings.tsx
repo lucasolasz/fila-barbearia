@@ -29,7 +29,6 @@ export default function AdminSettings() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [trackingUrlBase, setTrackingUrlBase] = useState("");
   const [baseQueueTime, setBaseQueueTime] = useState(30);
-  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
   const [preOpeningHours, setPreOpeningHours] = useState(0);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -59,7 +58,7 @@ export default function AdminSettings() {
       const { data: settings } = await supabase
         .from("shop_settings")
         .select(
-          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, max_queue_time, pre_opening_minutes",
+          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, pre_opening_minutes",
         )
         .limit(1)
         .maybeSingle();
@@ -83,9 +82,6 @@ export default function AdminSettings() {
       }
       if (settings?.base_queue_time != null) {
         setBaseQueueTime(settings.base_queue_time);
-      }
-      if (settings?.max_queue_time) {
-        setMaxQueueTime(settings.max_queue_time);
       }
       if (settings?.pre_opening_minutes != null) {
         setPreOpeningHours(Math.round(settings.pre_opening_minutes / 60));
@@ -129,7 +125,6 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
-            max_queue_time: maxQueueTime,
             pre_opening_minutes: (preOpeningHours || 0) * 60,
           })
           .eq("id", current.id);
@@ -143,7 +138,6 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
-            max_queue_time: maxQueueTime,
             pre_opening_minutes: (preOpeningHours || 0) * 60,
           },
         ]);
@@ -423,21 +417,6 @@ export default function AdminSettings() {
             </h2>
           </div>
           <div className="rounded-2xl bg-neutral-900 p-6 shadow-sm border border-neutral-800 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-neutral-300 mb-1">
-                Horário Limite para Entrar na Fila
-              </label>
-              <input
-                type="time"
-                value={maxQueueTime}
-                onChange={(e) => setMaxQueueTime(e.target.value)}
-                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-lg text-white outline-none focus:border-emerald-500 transition-all"
-              />
-              <p className="mt-2 text-xs text-neutral-500">
-                Se a estimativa de atendimento ultrapassar este horário, a fila
-                será bloqueada para novos clientes.
-              </p>
-            </div>
             <div>
               <label className="block text-sm font-bold text-neutral-300 mb-1">
                 Pré-abertura Automática (horas antes da abertura)
