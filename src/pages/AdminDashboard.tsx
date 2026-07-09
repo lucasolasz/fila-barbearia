@@ -555,40 +555,41 @@ export default function AdminDashboard() {
 
     const { data: s } = await supabase
       .from("shop_settings")
-      .select(
-        "manual_status, is_lunch_paused, is_pre_opening, pre_opening_minutes",
-      )
+      .select("manual_status, is_lunch_paused, is_pre_opening")
       .limit(1)
       .maybeSingle();
     if (!s) return;
 
-    // Resolve open_time + is_closed do dia (exceção tem prioridade sobre o semanal).
+    // Resolve open_time + is_closed + pré-abertura do dia
+    // (exceção tem prioridade sobre o semanal).
     let isClosed = false;
     let openTime: string | null = null;
+    let preMin = 0;
     const { data: ex } = await supabase
       .from("schedule_exceptions")
-      .select("is_closed, open_time")
+      .select("is_closed, open_time, pre_opening_minutes")
       .eq("date", todayStr)
       .maybeSingle();
     if (ex) {
       isClosed = !!ex.is_closed;
       openTime = ex.open_time;
+      preMin = ex.pre_opening_minutes ?? 0;
     } else {
       const { data: sch } = await supabase
         .from("barbershop_schedule")
-        .select("is_closed, open_time")
+        .select("is_closed, open_time, pre_opening_minutes")
         .eq("weekday", weekday)
         .maybeSingle();
       if (sch) {
         isClosed = !!sch.is_closed;
         openTime = sch.open_time;
+        preMin = sch.pre_opening_minutes ?? 0;
       }
     }
     if (isClosed || !openTime) return;
 
     const [oh, om] = openTime.split(":").map(Number);
     const openMinutes = oh * 60 + om;
-    const preMin = s.pre_opening_minutes ?? 0;
     const preStart = openMinutes - preMin;
     const ref = autoRef.current;
 
