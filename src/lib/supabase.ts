@@ -97,6 +97,7 @@ export type Schedule = {
   open_time: string | null;
   close_time: string | null;
   is_closed: boolean;
+  pre_opening_minutes: number;
 };
 
 export type ScheduleException = {
@@ -105,6 +106,7 @@ export type ScheduleException = {
   open_time: string | null;
   close_time: string | null;
   is_closed: boolean;
+  pre_opening_minutes: number;
 };
 
 export type ShopSettings = {
@@ -117,4 +119,5 @@ export type ShopSettings = {
   updated_at: string;
   is_lunch_paused?: boolean;
   is_pre_opening?: boolean;
+  pre_opening_minutes?: number;
 };

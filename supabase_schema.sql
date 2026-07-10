@@ -52,6 +52,7 @@ create table IF NOT EXISTS public.barbershop_schedule (
   open_time time without time zone null,
   close_time time without time zone null,
   is_closed boolean null default false,
+  pre_opening_minutes smallint not null default 0,
   constraint barbershop_schedule_pkey primary key (id),
   constraint barbershop_schedule_weekday_key unique (weekday)
 ) TABLESPACE pg_default;
@@ -63,6 +64,7 @@ create table IF NOT EXISTS public.schedule_exceptions (
   open_time time without time zone null,
   close_time time without time zone null,
   is_closed boolean null default false,
+  pre_opening_minutes smallint not null default 0,
   constraint schedule_exceptions_pkey primary key (id),
   constraint schedule_exceptions_date_key unique (date)
 ) TABLESPACE pg_default;
@@ -83,6 +85,7 @@ create table IF NOT EXISTS public.shop_settings (
   constraint shop_settings_pkey primary key (id),
   is_lunch_paused boolean not null default false,
   is_pre_opening boolean not null default false,
+  pre_opening_minutes smallint not null default 0,
   constraint shop_settings_manual_status_check check (
     (
       manual_status = any (array['auto'::text, 'open'::text, 'closed'::text])

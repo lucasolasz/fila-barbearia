@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
-  Hourglass,
   Loader2,
   MessageCircle,
   Plus,
@@ -29,13 +28,14 @@ export default function AdminSettings() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [trackingUrlBase, setTrackingUrlBase] = useState("");
   const [baseQueueTime, setBaseQueueTime] = useState(30);
-  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
     success: boolean;
     message: string;
   } | null>(null);
-  const [testEventType, setTestEventType] = useState<"JOINED" | "NEAR" | "NEXT" | "UPDATE" | "DELAYED">("DELAYED");
+  const [testEventType, setTestEventType] = useState<
+    "JOINED" | "NEAR" | "NEXT" | "UPDATE" | "DELAYED"
+  >("DELAYED");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +58,7 @@ export default function AdminSettings() {
       const { data: settings } = await supabase
         .from("shop_settings")
         .select(
-          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time, max_queue_time",
+          "whatsapp_number, shop_name, logo_url, webhook_url, tracking_url_base, base_queue_time",
         )
         .limit(1)
         .maybeSingle();
@@ -82,9 +82,6 @@ export default function AdminSettings() {
       }
       if (settings?.base_queue_time != null) {
         setBaseQueueTime(settings.base_queue_time);
-      }
-      if (settings?.max_queue_time) {
-        setMaxQueueTime(settings.max_queue_time);
       }
 
       setLoading(false);
@@ -125,7 +122,6 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
-            max_queue_time: maxQueueTime,
           })
           .eq("id", current.id);
       } else {
@@ -138,7 +134,6 @@ export default function AdminSettings() {
             webhook_url: webhookUrl || null,
             tracking_url_base: trackingUrlBase || null,
             base_queue_time: baseQueueTime,
-            max_queue_time: maxQueueTime,
           },
         ]);
       }
@@ -158,6 +153,7 @@ export default function AdminSettings() {
       open_time: "09:00",
       close_time: "18:00",
       is_closed: false,
+      pre_opening_minutes: 0,
     };
     const { data, error } = await supabase
       .from("schedule_exceptions")
@@ -411,32 +407,6 @@ export default function AdminSettings() {
 
         <section className="space-y-4">
           <div className="flex items-center space-x-2">
-            <Hourglass className="h-6 w-6 text-emerald-600" />
-            <h2 className="text-xl font-bold text-white">
-              Configurações da Fila
-            </h2>
-          </div>
-          <div className="rounded-2xl bg-neutral-900 p-6 shadow-sm border border-neutral-800 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-neutral-300 mb-1">
-                Horário Limite para Entrar na Fila
-              </label>
-              <input
-                type="time"
-                value={maxQueueTime}
-                onChange={(e) => setMaxQueueTime(e.target.value)}
-                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-lg text-white outline-none focus:border-emerald-500 transition-all"
-              />
-              <p className="mt-2 text-xs text-neutral-500">
-                Se a estimativa de atendimento ultrapassar este horário, a fila
-                será bloqueada para novos clientes.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex items-center space-x-2">
             <Webhook className="h-6 w-6 text-emerald-600" />
             <h2 className="text-xl font-bold text-white">Integração Webhook</h2>
           </div>
@@ -539,33 +509,63 @@ export default function AdminSettings() {
                   </label>
 
                   {!sched.is_closed && (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="time"
-                        value={sched.open_time?.slice(0, 5) || ""}
-                        onChange={(e) =>
-                          handleScheduleChange(
-                            index,
-                            "open_time",
-                            e.target.value,
-                          )
-                        }
-                        className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
-                      />
-                      <span className="text-neutral-500">até</span>
-                      <input
-                        type="time"
-                        value={sched.close_time?.slice(0, 5) || ""}
-                        onChange={(e) =>
-                          handleScheduleChange(
-                            index,
-                            "close_time",
-                            e.target.value,
-                          )
-                        }
-                        className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
-                      />
-                    </div>
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="time"
+                          value={sched.open_time?.slice(0, 5) || ""}
+                          onChange={(e) =>
+                            handleScheduleChange(
+                              index,
+                              "open_time",
+                              e.target.value,
+                            )
+                          }
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                        <span className="text-neutral-500">até</span>
+                        <input
+                          type="time"
+                          value={sched.close_time?.slice(0, 5) || ""}
+                          onChange={(e) =>
+                            handleScheduleChange(
+                              index,
+                              "close_time",
+                              e.target.value,
+                            )
+                          }
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <label className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-neutral-400 whitespace-nowrap">
+                          Pré-abertura (h)
+                          <br />0 = desabilitado
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={8}
+                          value={Math.round(
+                            (sched.pre_opening_minutes ?? 0) / 60,
+                          )}
+                          onChange={(e) =>
+                            handleScheduleChange(
+                              index,
+                              "pre_opening_minutes",
+                              Math.min(
+                                8,
+                                Math.max(
+                                  0,
+                                  Math.floor(Number(e.target.value) || 0),
+                                ),
+                              ) * 60,
+                            )
+                          }
+                          className="w-16 rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                      </label>
+                    </>
                   )}
                 </div>
               </div>
@@ -621,25 +621,55 @@ export default function AdminSettings() {
                   </label>
 
                   {!ex.is_closed && (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="time"
-                        value={ex.open_time?.slice(0, 5) || ""}
-                        onChange={(e) =>
-                          updateException(ex.id, { open_time: e.target.value })
-                        }
-                        className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
-                      />
-                      <span className="text-neutral-500">até</span>
-                      <input
-                        type="time"
-                        value={ex.close_time?.slice(0, 5) || ""}
-                        onChange={(e) =>
-                          updateException(ex.id, { close_time: e.target.value })
-                        }
-                        className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
-                      />
-                    </div>
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="time"
+                          value={ex.open_time?.slice(0, 5) || ""}
+                          onChange={(e) =>
+                            updateException(ex.id, {
+                              open_time: e.target.value,
+                            })
+                          }
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                        <span className="text-neutral-500">até</span>
+                        <input
+                          type="time"
+                          value={ex.close_time?.slice(0, 5) || ""}
+                          onChange={(e) =>
+                            updateException(ex.id, {
+                              close_time: e.target.value,
+                            })
+                          }
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <label className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-neutral-400 whitespace-nowrap">
+                          Pré-abertura (h)
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={8}
+                          value={Math.round((ex.pre_opening_minutes ?? 0) / 60)}
+                          onChange={(e) =>
+                            updateException(ex.id, {
+                              pre_opening_minutes:
+                                Math.min(
+                                  8,
+                                  Math.max(
+                                    0,
+                                    Math.floor(Number(e.target.value) || 0),
+                                  ),
+                                ) * 60,
+                            })
+                          }
+                          className="w-16 rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                      </label>
+                    </>
                   )}
 
                   <button

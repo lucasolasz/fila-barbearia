@@ -72,7 +72,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [dialogStep, setDialogStep] = useState<number | null>(null);
   const [servicesPerPerson, setServicesPerPerson] = useState<ServiceId[][]>([]);
-  const { isOpen, message, loading: statusLoading } = useShopStatus();
+  const { isOpen, message, closeTime, loading: statusLoading } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
   const {
@@ -84,20 +84,6 @@ export default function Home() {
     isLunchPaused,
     isPreOpening,
   } = useShopSettings();
-  const [maxQueueTime, setMaxQueueTime] = useState("19:00");
-
-  useEffect(() => {
-    async function fetchMaxTime() {
-      const { data } = await supabase
-        .from("shop_settings")
-        .select("max_queue_time")
-        .maybeSingle();
-      if (data?.max_queue_time) {
-        setMaxQueueTime(data.max_queue_time);
-      }
-    }
-    fetchMaxTime();
-  }, []);
 
   useEffect(() => {
     if (statusLoading) return;
@@ -337,8 +323,8 @@ export default function Home() {
   }, [queueCount, isLunchPaused, isPreOpening]);
   const isQueueFull =
     estimatedTimeStr !== "Agora" &&
-    maxQueueTime &&
-    estimatedTimeStr.split(" ")[0] > maxQueueTime;
+    !!closeTime &&
+    estimatedTimeStr.split(" ")[0] > closeTime.slice(0, 5);
 
   if (statusLoading) {
     return (
@@ -392,7 +378,7 @@ export default function Home() {
             <p className="font-medium">A fila está lotada no momento.</p>
             <p className="mt-1 text-sm opacity-90">
               O tempo estimado de atendimento ultrapassa nosso horário limite de{" "}
-              {maxQueueTime}. Por favor, tente novamente outro dia.
+              {closeTime?.slice(0, 5)}. Por favor, tente novamente outro dia.
             </p>
           </div>
         ) : (

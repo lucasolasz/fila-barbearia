@@ -200,35 +200,9 @@ POST para URL configurada em `shop_settings.webhook_url` (n8n em `n8ndes.ltech.a
 
 ### DELAYED — detalhes
 
-- `elapsed = minutos desde service_start do serving`
-- `plannedDuration = serving.service_duration ?? 30`
-- Dispara apenas quando `elapsed > plannedDuration`
-- Loop por todos `waiting`; cada item recebe webhook com cooldown 10min próprio (`last_delay_sent_at`)
-- Verificação por intervalo de 1 min (`setInterval`)
-- Posição enviada: `itemPosition = i + 2` (1 = serving, espera começa em 2)
-
-### NEXT — detalhes
-
-- Dispara só quando cliente **moveu para** `servingCount + 1` vindo de posição mais alta
-- Evita NEXT para quem entrou direto no topo
-- Após sucesso, seta `notified_next: true`
-
-### NEAR — detalhes
-
-- Cruza barreira das 3 posições (de >3 para ≤3)
-- NEXT prioritário se ambos aplicarem
-- Após sucesso, seta `notified_near: true`
-
-### UPDATE — detalhes
-
-- Dois caminhos: posição mudou (em `lastPos !== position`) ou ETA drift com posição constante
-- Primeira observação de item (`lastPos === undefined`): seta `last_sent_eta` no DB e **não** envia webhook — evita UPDATE redundante imediatamente após JOINED
-
-### Modo Almoço / Pré-Abertura
-
-- `LUNCH_START` / `PRE_OPENING_START`: enviado para todo `waiting`+`serving` ao ativar
-- `LUNCH_END` / `PRE_OPENING_END`: enviado para todo `waiting` ao desativar (`serving` exclui)
-- Ao desativar almoço, sistema **recalcula tempo médio** baseado no estado pós-almoço
+- `elapsed` = min desde `service_start` do serving; `plannedDuration = service_duration ?? 30`. Dispara quando `elapsed > plannedDuration`
+- Loop por `waiting`, cooldown 10min por item (`last_delay_sent_at`), verificação `setInterval` 1 min
+- Posição enviada: `itemPosition = i + 2` (1 = serving)
 
 ### AddCustomerForm — phone "manual_"
 
@@ -249,28 +223,15 @@ ETA = soma de `service_duration` real de cada entrada à frente (não média fix
 
 **Fallback**: `service_duration` null → 30 min (default DB) ou 37 min (heurística antiga).
 
-### Arredondamento
-
-Múltiplo de 5 min mais próximo. Exemplo: 9:47 → 9:45.
-
-### Formato
-
-String única `"HH:mm"` — não mais intervalo `"HH:mm e HH:mm"`.
-
-### Drift baseado em tempo
-
-Verificado em `useWebhookNotifications` mesmo quando posição não mudou (envia UPDATE se ETA drift ≥ 10min e cooldown OK).
-
----
-
-## ETA — Não Contabilizar em Dobro o "serving"
+- **Arredondamento** (`roundToNearest5`): múltiplo de 5 min mais próximo (9:47 → 9:45)
+- **Formato**: string única `"HH:mm"` (não mais intervalo)
+- **Drift**: `useWebhookNotifications` envia UPDATE mesmo com posição constante se ETA drift ≥ 10min e cooldown OK
+- **Não duplicar serving**: `remainingCurrent` (atendimento atual) separado de `waitingAhead`; posição 1 usa só `remainingCurrent`
 
 ```typescript
 const waitingAhead = Math.max(0, posicaoNaFila - 1 - servingCount);
 // totalMin = remainingCurrent + waitingAhead * avg
 ```
-
-Para posição 1, ETA considera só `remainingCurrent` do atendimento atual.
 
 ---
 
@@ -348,11 +309,7 @@ const nextPos = (last?.position || 0) + 1;
 
 Filtro por status ativo garante que `position` reseta para 1 quando fila esvazia. Antes (sem filtro) crescia para sempre incluindo `completed`/`cancelled`.
 
-### Rank visual sempre runtime
-
-- Home: `queueCount + 1` (`queueCount` inclui `waiting`+`serving`)
-- QueueStatus: contagem ativos com `position < currentPosition` +1
-- AdminDashboard: `servingCount + waitingIndex + 1`
+Rank visual é sempre runtime — ver tabela em [Posição na Fila](#posição-na-fila--contagem-inclui-serving).
 
 ---
 
@@ -479,30 +436,8 @@ ShopSettings {
 
 ## Decisões de Desenvolvimento
 
-1. **Webhook position**: rank ativo (`queueCount + 1`), nunca campo DB `position`
-2. **`position` reseta com fila vazia**: max calculado só entre `waiting`+`serving` (filtro `.in("status", […])` em `Home.tsx:232` e `AddCustomerForm.tsx:70`)
-3. **Reset de notificações**: removido reset automático que causava re-envio indevido ao abrir dashboard
-4. **Position no banco**: mantido para `order by` + drag/drop; rank sempre runtime
-5. **Contagem inclui "serving"**: `useQueueCount()` conta `["waiting","serving"]`
-6. **Tempo de serviço dinâmico**: soma de `queue.service_duration` por entrada (fallback 37min ou 30min)
-7. **Arredondamento**: múltiplo de 5 min mais próximo (`roundToNearest5`)
-8. **ETA formato único**: `"HH:mm"` — não mais intervalo
-9. **ETA não duplica serving**: `remainingCurrent` separado de `waitingAhead`
-10. **NEXT trigger**: `position === servingCount + 1` (topo da espera)
-11. **Convidados via parent_queue_id**: relação no banco, sem localStorage
-12. **Modo almoço/pré-abertura**: flags em `shop_settings`, webhooks dedicados (`*_START`, `*_END`, `JOINED_IN_*`)
-13. **UPDATE não acompanha JOINED**: primeira observação seta `last_sent_eta` sem enviar webhook
-14. **Almoço só com loja aberta; pré-abertura só em auto + loja fechada**
-15. **Recalcula ETA após LUNCH_END**
-16. **Schema**: todas tabelas em `supabase_schema.sql` — manter sincronizado
+Racional não óbvio pelas seções acima:
 
----
-
-## Comandos Úteis
-
-```bash
-npm run lint        # ESLint
-npm run build       # Build (verifica erros)
-npm run typecheck   # TypeScript only
-npx tsc --noEmit    # idem
-```
+- **Reset de notificações removido**: reset automático baseado em `peopleAhead` causava re-envio indevido ao abrir dashboard; hoje reset só em reorder manual
+- **UPDATE não acompanha JOINED**: primeira observação de item seta `last_sent_eta` sem enviar webhook (evita UPDATE redundante logo após JOINED)
+- **Schema sincronizado**: qualquer migration = `supabase_schema.sql` + tipo em `supabase.ts` + rodar SQL no Supabase
