@@ -105,10 +105,34 @@ create table IF NOT EXISTS public.campaigns (
   is_draft boolean not null default false,
   selected_contact_ids text[] null default '{}'::text[],
   recipient_count integer not null default 0,
+  send_status text null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
-  constraint campaigns_pkey primary key (id)
+  constraint campaigns_pkey primary key (id),
+  constraint campaigns_send_status_check check (
+    (send_status is null) or (send_status = any (array['sending'::text, 'completed'::text, 'failed'::text]))
+  )
 ) TABLESPACE pg_default;
+
+-- 7b. Campaign Recipients Table (fila de envio por destinatário, permite acompanhar progresso)
+create table IF NOT EXISTS public.campaign_recipients (
+  id uuid not null default gen_random_uuid (),
+  campaign_id uuid not null references public.campaigns (id) on delete cascade,
+  customer_id uuid null references public.customers (id) on delete set null,
+  nome text not null,
+  numero text not null,
+  status text not null default 'pending'::text,
+  error_message text null,
+  sent_at timestamp with time zone null,
+  created_at timestamp with time zone not null default now(),
+  constraint campaign_recipients_pkey primary key (id),
+  constraint campaign_recipients_status_check check (
+    (status = any (array['pending'::text, 'sent'::text, 'error'::text, 'invalid_number'::text]))
+  )
+) TABLESPACE pg_default;
+
+create index IF NOT EXISTS idx_campaign_recipients_campaign_status
+  on public.campaign_recipients (campaign_id, status);
 
 -- 8. Barber Services Table (catálogo de serviços configurável)
 create table IF NOT EXISTS public.barber_services (
@@ -153,6 +177,10 @@ ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "full_access_campaigns" ON public.campaigns
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
+ALTER TABLE public.campaign_recipients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "full_access_campaign_recipients" ON public.campaign_recipients
+  FOR ALL TO anon USING (true) WITH CHECK (true);
+
 ALTER TABLE public.barber_services ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "full_access_barber_services" ON public.barber_services
   FOR ALL TO anon USING (true) WITH CHECK (true);
@@ -163,6 +191,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE barbershop_schedule;
 ALTER PUBLICATION supabase_realtime ADD TABLE schedule_exceptions;
 ALTER PUBLICATION supabase_realtime ADD TABLE shop_settings;
 ALTER PUBLICATION supabase_realtime ADD TABLE barber_services;
+ALTER PUBLICATION supabase_realtime ADD TABLE campaign_recipients;
 
 -- Initial Shop Settings Data
 INSERT INTO "public"."shop_settings" ("id", "manual_status", "updated_at", "whatsapp_number", "theme", "shop_name", "logo_url", "webhook_url", "tracking_url_base", "base_queue_time", "max_queue_time") VALUES ('8af2b68d-f970-41b2-b5ef-32b086db69bd', 'auto', '2026-03-29 20:21:17.552291+00', '+5521999062880', 'dark', 'Don Cabellone', 'https://mgvkygjydujtoqubgwmc.supabase.co/storage/v1/object/public/logos/logo-1776533077248.jpg', 'https://n8ndes.ltech.app.br/webhook/notificacao', 'https://www.doncabellone.com.br/', 30, '19:00');

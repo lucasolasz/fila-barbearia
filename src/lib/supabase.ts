@@ -80,8 +80,21 @@ export type Campaign = {
   is_draft: boolean;
   selected_contact_ids: string[];
   recipient_count: number;
+  send_status: "sending" | "completed" | "failed" | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CampaignRecipient = {
+  id: string;
+  campaign_id: string;
+  customer_id: string | null;
+  nome: string;
+  numero: string;
+  status: "pending" | "sent" | "error" | "invalid_number";
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
 };
 
 export type Service = {

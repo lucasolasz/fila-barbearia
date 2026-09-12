@@ -137,3 +137,69 @@ END $$;
 -- =====================================
 ALTER TABLE public.shop_settings
   ADD COLUMN IF NOT EXISTS campaign_webhook_url text null;
+
+
+-- =====================================
+-- Migração 15/08/2026 — Fila de destinatários por campanha (campaign_recipients) + status de envio
+-- =====================================
+ALTER TABLE public.campaigns
+  ADD COLUMN IF NOT EXISTS send_status text null;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'campaigns' AND constraint_name = 'campaigns_send_status_check'
+  ) THEN
+    ALTER TABLE public.campaigns
+      ADD CONSTRAINT campaigns_send_status_check
+      CHECK ((send_status is null) or (send_status = any (array['sending'::text, 'completed'::text, 'failed'::text])));
+  END IF;
+END $$;
+
+-- Campanhas já enviadas antes desta migração não têm rastreio por destinatário; marcadas como concluídas.
+UPDATE public.campaigns
+SET send_status = 'completed'
+WHERE is_draft = false AND send_status IS NULL;
+
+create table IF NOT EXISTS public.campaign_recipients (
+  id uuid not null default gen_random_uuid (),
+  campaign_id uuid not null references public.campaigns (id) on delete cascade,
+  customer_id uuid null references public.customers (id) on delete set null,
+  nome text not null,
+  numero text not null,
+  status text not null default 'pending'::text,
+  error_message text null,
+  sent_at timestamp with time zone null,
+  created_at timestamp with time zone not null default now(),
+  constraint campaign_recipients_pkey primary key (id),
+  constraint campaign_recipients_status_check check (
+    (status = any (array['pending'::text, 'sent'::text, 'error'::text, 'invalid_number'::text]))
+  )
+) TABLESPACE pg_default;
+
+create index IF NOT EXISTS idx_campaign_recipients_campaign_status
+  on public.campaign_recipients (campaign_id, status);
+
+ALTER TABLE public.campaign_recipients ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'campaign_recipients' AND policyname = 'full_access_campaign_recipients'
+  ) THEN
+    CREATE POLICY "full_access_campaign_recipients" ON public.campaign_recipients
+      FOR ALL TO anon USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'campaign_recipients'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE campaign_recipients;
+  END IF;
+END $$;

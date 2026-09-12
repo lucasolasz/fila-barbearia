@@ -39,12 +39,15 @@ export default function AdminCampaigns() {
   const [showSent, setShowSent] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [recipientStats, setRecipientStats] = useState<
+    Record<string, { sent: number; error: number; invalid: number; pending: number; total: number }>
+  >({});
   const { shopName, logoUrl, campaignWebhookUrl } = useShopSettings();
 
   async function fetchDrafts() {
     const { data, error } = await supabase
       .from("campaigns")
-      .select("id, title, message, is_draft, selected_contact_ids, recipient_count, created_at, updated_at")
+      .select("id, title, message, is_draft, selected_contact_ids, recipient_count, send_status, created_at, updated_at")
       .eq("is_draft", true)
       .order("created_at", { ascending: false });
     if (error) {
@@ -55,10 +58,40 @@ export default function AdminCampaigns() {
     }
   }
 
+  async function fetchRecipientStats(campaignIds: string[]) {
+    if (campaignIds.length === 0) {
+      setRecipientStats({});
+      return;
+    }
+    const { data, error } = await supabase
+      .from("campaign_recipients")
+      .select("campaign_id, status")
+      .in("campaign_id", campaignIds);
+    if (error) {
+      console.error("Error fetching recipient stats:", error);
+      return;
+    }
+    const stats: Record<
+      string,
+      { sent: number; error: number; invalid: number; pending: number; total: number }
+    > = {};
+    (data || []).forEach((row: { campaign_id: string; status: string }) => {
+      if (!stats[row.campaign_id]) {
+        stats[row.campaign_id] = { sent: 0, error: 0, invalid: 0, pending: 0, total: 0 };
+      }
+      stats[row.campaign_id].total += 1;
+      if (row.status === "sent") stats[row.campaign_id].sent += 1;
+      else if (row.status === "error") stats[row.campaign_id].error += 1;
+      else if (row.status === "invalid_number") stats[row.campaign_id].invalid += 1;
+      else stats[row.campaign_id].pending += 1;
+    });
+    setRecipientStats(stats);
+  }
+
   async function fetchSentCampaigns() {
     const { data, error } = await supabase
       .from("campaigns")
-      .select("id, title, message, is_draft, selected_contact_ids, recipient_count, created_at, updated_at")
+      .select("id, title, message, is_draft, selected_contact_ids, recipient_count, send_status, created_at, updated_at")
       .eq("is_draft", false)
       .order("created_at", { ascending: false });
     if (error) {
@@ -66,6 +99,7 @@ export default function AdminCampaigns() {
     }
     if (data) {
       setSentCampaigns(data);
+      fetchRecipientStats(data.map((c) => c.id));
     }
   }
 
@@ -108,6 +142,21 @@ export default function AdminCampaigns() {
     }
 
     loadData();
+
+    const channel = supabase
+      .channel("campaign_recipients_progress")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "campaign_recipients" },
+        () => {
+          fetchSentCampaigns();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [navigate]);
 
   const handleSaveDraft = async () => {
@@ -268,14 +317,36 @@ export default function AdminCampaigns() {
 
     setSending(true);
     try {
-      const payload = {
-        titulo_campanha: campaignTitle.trim(),
-        mensagem_texto: messageText.trim(),
-        destinatarios: selectedContacts.map((c) => ({
-          nome: c.name,
-          numero: c.phone,
-        })),
-      };
+      const { data: campaignRow, error: campaignError } = await supabase
+        .from("campaigns")
+        .insert({
+          title: campaignTitle.trim(),
+          message: messageText.trim(),
+          is_draft: false,
+          recipient_count: selectedContacts.length,
+          selected_contact_ids: selectedContacts.map((c) => c.id),
+          send_status: "sending",
+        })
+        .select("id")
+        .single();
+
+      if (campaignError || !campaignRow) {
+        throw campaignError || new Error("Falha ao criar campanha");
+      }
+
+      const { error: recipientsError } = await supabase
+        .from("campaign_recipients")
+        .insert(
+          selectedContacts.map((c) => ({
+            campaign_id: campaignRow.id,
+            customer_id: c.id,
+            nome: c.name.trim().split(" ")[0],
+            numero: c.phone,
+            status: "pending",
+          })),
+        );
+
+      if (recipientsError) throw recipientsError;
 
       let finalWebhookUrl = campaignWebhookUrl.trim();
       if (
@@ -288,23 +359,19 @@ export default function AdminCampaigns() {
       const response = await fetch(finalWebhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ campaign_id: campaignRow.id }),
       });
 
       if (!response.ok) {
+        await supabase
+          .from("campaigns")
+          .update({ send_status: "failed" })
+          .eq("id", campaignRow.id);
         throw new Error(`Webhook respondeu ${response.status}`);
       }
 
-      await supabase.from("campaigns").insert({
-        title: campaignTitle.trim(),
-        message: messageText.trim(),
-        is_draft: false,
-        recipient_count: selectedContacts.length,
-        selected_contact_ids: selectedContacts.map((c) => c.id),
-      });
-
       toast.success(
-        `Campanha enviada para ${selectedContacts.length} contatos!`,
+        `Campanha disparada para ${selectedContacts.length} contatos! Acompanhe o progresso em "Enviadas".`,
       );
       setCampaignTitle("");
       setMessageText("");
@@ -436,7 +503,33 @@ export default function AdminCampaigns() {
                               {new Date(campaign.created_at).toLocaleString("pt-BR")}
                             </p>
                             <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{campaign.message}</p>
-                            <p className="text-xs text-emerald-500 mt-2">{campaign.recipient_count} contatos</p>
+                            {(() => {
+                              const stats = recipientStats[campaign.id];
+                              const total = stats?.total || campaign.recipient_count;
+                              const sent = stats?.sent || 0;
+                              const errorCount = (stats?.error || 0) + (stats?.invalid || 0);
+                              const statusLabel =
+                                campaign.send_status === "sending"
+                                  ? "Enviando..."
+                                  : campaign.send_status === "failed"
+                                    ? "Falhou ao iniciar"
+                                    : "Concluída";
+                              const statusColor =
+                                campaign.send_status === "sending"
+                                  ? "text-amber-400"
+                                  : campaign.send_status === "failed"
+                                    ? "text-red-500"
+                                    : "text-emerald-500";
+                              return (
+                                <div className="mt-2 space-y-0.5">
+                                  <p className={`text-xs font-bold ${statusColor}`}>{statusLabel}</p>
+                                  <p className="text-xs text-neutral-500">
+                                    {sent}/{total} enviadas
+                                    {errorCount > 0 && ` · ${errorCount} com erro`}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex flex-col gap-1 ml-2">
                             <button

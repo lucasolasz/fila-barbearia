@@ -12,7 +12,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -1600,
+        -2000,
         800
       ],
       "id": "283417fb-863b-4d91-aaca-e4e6a0cdc4a4",
@@ -25,21 +25,9 @@
           "assignments": [
             {
               "id": "4723974b-486e-47d5-ba59-522ff3229966",
-              "name": "titulo_campanha",
-              "value": "={{ $json.body.titulo_campanha }}",
+              "name": "campaign_id",
+              "value": "={{ $json.body.campaign_id }}",
               "type": "string"
-            },
-            {
-              "id": "94da2511-283e-4e03-9e1e-429d0b29149a",
-              "name": "mensagem_texto",
-              "value": "={{ $json.body.mensagem_texto }}",
-              "type": "string"
-            },
-            {
-              "id": "138f8258-19c8-40c9-8714-cd6ebc4aa47c",
-              "name": "destinatarios",
-              "value": "={{ $json.body.destinatarios }}",
-              "type": "array"
             }
           ]
         },
@@ -48,7 +36,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1360,
+        -1760,
         800
       ],
       "id": "7e771b5a-6922-448d-8ce7-e7f847ff3c66",
@@ -56,12 +44,52 @@
     },
     {
       "parameters": {
-        "jsCode": "// WhatsApp usa *negrito* (asterisco simples) e _itálico_, mas o admin digita\n// no padrão Markdown (**negrito**, *itálico*). Converte antes de enviar,\n// senão o cliente recebe os asteriscos literais no WhatsApp.\nconst raw = String($input.first().json.mensagem_texto || '');\nconst BOLD_MARK = '\\u0000';\n\nlet formatted = raw.replace(/\\*\\*(.+?)\\*\\*/g, (_, t) => `${BOLD_MARK}${t}${BOLD_MARK}`);\nformatted = formatted.replace(/\\*(.+?)\\*/g, '_$1_');\nformatted = formatted.split(BOLD_MARK).join('*');\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    mensagem_formatada: formatted\n  }\n}];"
+        "operation": "get",
+        "tableId": "campaigns",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Extrair Dados').item.json.campaign_id }}"
+            }
+          ]
+        }
       },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        -1120,
+        -1520,
+        800
+      ],
+      "id": "c0b90093-b010-404a-b5d8-e933af748440",
+      "name": "Buscar Campanha",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a2b3c4d-5e6f-4789-9abc-def012345678",
+              "name": "mensagem_formatada",
+              "value": "={{ (() => {\n  // WhatsApp usa *negrito* (asterisco simples) e _itálico_, mas o admin digita\n  // no padrão Markdown (**negrito**, *itálico*). Converte antes de enviar,\n  // senão o cliente recebe os asteriscos literais no WhatsApp.\n  const raw = String($('Buscar Campanha').item.json.message || '');\n  const BOLD_MARK = '\\u0000';\n  let formatted = raw.replace(/\\*\\*(.+?)\\*\\*/g, (_, t) => BOLD_MARK + t + BOLD_MARK);\n  formatted = formatted.replace(/\\*(.+?)\\*/g, '_$1_');\n  formatted = formatted.split(BOLD_MARK).join('*');\n  return formatted;\n})() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1280,
         800
       ],
       "id": "048a65cd-caab-4192-82e9-e88faa6a9b71",
@@ -69,17 +97,39 @@
     },
     {
       "parameters": {
-        "fieldToSplitOut": "destinatarios",
-        "options": {}
+        "operation": "getAll",
+        "tableId": "campaign_recipients",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "campaign_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Extrair Dados').item.json.campaign_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pending"
+            }
+          ]
+        }
       },
-      "type": "n8n-nodes-base.splitOut",
+      "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -880,
+        -1040,
         800
       ],
-      "id": "244f49b7-cc63-4aa0-a059-191ddb0b3df0",
-      "name": "Split Out"
+      "id": "3b2efce4-d727-4869-8a34-5b8ef7c37f13",
+      "name": "Buscar Destinatários Pendentes",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
+        }
+      }
     },
     {
       "parameters": {
@@ -89,7 +139,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -640,
+        -800,
         800
       ],
       "id": "da4aa67d-e0a3-4768-8192-043601c736df",
@@ -100,17 +150,21 @@
         "resource": "Contacts",
         "operation": "Check Exists",
         "session": "=default",
-        "phone": "={{ $json.numero }}",
+        "phone": "={{ $('Loop Over Items').item.json.numero }}",
         "requestOptions": {}
       },
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        -400,
+        -560,
         960
       ],
       "id": "993da514-e1cd-4922-a98c-a8f71550d671",
       "name": "Verificar Número",
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 4000,
       "credentials": {
         "wahaApi": {
           "id": "SnPbBDMOKqjxdZQo",
@@ -124,7 +178,7 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict",
+            "typeValidation": "loose",
             "version": 3
           },
           "conditions": [
@@ -146,8 +200,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -160,
-        960
+        -320,
+        880
       ],
       "id": "0b7af641-f7fb-4829-a03f-1259a28c5856",
       "name": "Número existe?"
@@ -163,26 +217,26 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        80,
-        880
+        -80,
+        800
       ],
       "id": "50a3956a-f822-4fc4-8008-c27c9e29c6c6",
       "name": "Start Typing"
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 3) + 3 }}"
+        "amount": "={{ (() => {\n  const total = $('Buscar Destinatários Pendentes').all().length;\n  const blocoTamanho = total <= 20 ? 0 : total <= 100 ? 20 : total <= 300 ? 30 : 50;\n  const isLongBreak = blocoTamanho > 0 && $runIndex > 0 && $runIndex % blocoTamanho === (blocoTamanho - 1);\n  const base = isLongBreak ? Math.floor(Math.random() * 60) + 45 : Math.floor(Math.random() * 12) + 6;\n  const msgLen = ($('Formatar Mensagem WhatsApp').item.json.mensagem_formatada || '').length;\n  const typingBonus = Math.min(6, Math.round(msgLen / 40));\n  return base + typingBonus;\n})() }}"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        320,
-        880
+        160,
+        800
       ],
       "id": "9852eb70-2a72-4e82-8588-ceb469e5bc38",
       "name": "Wait",
       "webhookId": "474cfc48-5886-4a7a-aace-ea704f8d2f27",
-      "notes": "tempo aleatório entre 3 e 5 segundos, pra evitar bloqueio do WhatsApp em disparo em massa"
+      "notes": "Delay natural: 6-17s normal + variação pelo tamanho da mensagem, com pausa longa (45-104s) a cada N mensagens (N calculado pela quantidade total de destinatários pendentes: <=20 sem pausa longa, <=100 blocos de 20, <=300 blocos de 30, acima disso blocos de 50). Evita padrão robótico de intervalo fixo."
     },
     {
       "parameters": {
@@ -190,22 +244,186 @@
         "operation": "Send Text",
         "session": "=default",
         "chatId": "={{ $('Verificar Número').item.json.chatId }}",
-        "text": "={{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}",
+        "text": "=Olá {{ $('Loop Over Items').item.json.nome }}, {{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}",
         "linkPreview": false,
         "requestOptions": {}
       },
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        560,
-        880
+        400,
+        800
       ],
       "id": "81c58ad7-b9cb-42fb-997a-f0ec6ad6b127",
       "name": "Enviar Mensagem",
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 4000,
       "credentials": {
         "wahaApi": {
           "id": "SnPbBDMOKqjxdZQo",
           "name": "WAHA - doncabellone"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "campaign_recipients",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "sent"
+            },
+            {
+              "fieldId": "sent_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        640,
+        720
+      ],
+      "id": "f3552268-82df-4ffa-828b-f5c18046d9d6",
+      "name": "Marcar Enviado",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "campaign_recipients",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "error"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ (() => {\n  const e = $json.error;\n  if (!e) return 'Erro desconhecido';\n  if (typeof e === 'string') return e;\n  return e.message || JSON.stringify(e);\n})() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        640,
+        1120
+      ],
+      "id": "d7433612-4986-4900-ae2b-0b95cc425a8b",
+      "name": "Marcar Erro",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "campaign_recipients",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "invalid_number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        1120
+      ],
+      "id": "6093706b-965c-4b03-a6d8-9dfc26b201e2",
+      "name": "Marcar Inválido",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "campaigns",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Extrair Dados').item.json.campaign_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "send_status",
+              "fieldValue": "completed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        480
+      ],
+      "id": "c09d56e4-8bc6-4b93-b74d-d3925991a018",
+      "name": "Marcar Campanha Concluída",
+      "credentials": {
+        "supabaseApi": {
+          "id": "COLOQUE_O_ID_DA_SUA_CREDENCIAL_SUPABASE",
+          "name": "Supabase account"
         }
       }
     }
@@ -226,6 +444,17 @@
       "main": [
         [
           {
+            "node": "Buscar Campanha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Campanha": {
+      "main": [
+        [
+          {
             "node": "Formatar Mensagem WhatsApp",
             "type": "main",
             "index": 0
@@ -237,14 +466,14 @@
       "main": [
         [
           {
-            "node": "Split Out",
+            "node": "Buscar Destinatários Pendentes",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Split Out": {
+    "Buscar Destinatários Pendentes": {
       "main": [
         [
           {
@@ -257,7 +486,13 @@
     },
     "Loop Over Items": {
       "main": [
-        [],
+        [
+          {
+            "node": "Marcar Campanha Concluída",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Verificar Número",
@@ -275,6 +510,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Marcar Erro",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -289,7 +531,7 @@
         ],
         [
           {
-            "node": "Loop Over Items",
+            "node": "Marcar Inválido",
             "type": "main",
             "index": 0
           }
@@ -319,6 +561,46 @@
       ]
     },
     "Enviar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Marcar Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Enviado": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Erro": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Inválido": {
       "main": [
         [
           {
