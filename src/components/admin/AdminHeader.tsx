@@ -110,6 +110,7 @@ export default function AdminHeader({
             <History className="h-6 w-6" />
           </button>
           <button
+            hidden
             onClick={() => onNavigate("/admin/campaigns")}
             className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 transition-colors"
             title="Campanhas"
