@@ -1,3 +1,7 @@
+# O que é este projeto?
+
+Fila digital para uma barbearia com apenas 1 barbeiro.
+
 # Locais de hospedagem
 
 - Projeto de producao esta hospedado na Vercel.
