@@ -78,7 +78,7 @@
         "operation": "Send Text",
         "session": "=default",
         "chatId": "={{ $json.chatId || $json[0]?.chatId }}",
-        "text": "=⚠️ *Houve um atraso no atendimento!*\n\nOlá {{ $('Verifica Atraso e Busca Fila').item.json.customer_name }},\n{{ $('Verifica Atraso e Busca Fila').item.json.pessoas_afrente > 0 ? '👥 Há ' + $('Verifica Atraso e Busca Fila').item.json.pessoas_afrente + ' pessoa(s) na sua frente\\n' : '' }}⏳ NOVO horário estimado: *{{ $('Verifica Atraso e Busca Fila').item.json.eta_hora }}* (~{{ $('Verifica Atraso e Busca Fila').item.json.eta_min }} min)\n\n⚠️ _O horário exibido é apenas uma PREVISÃO, podendo sofrer variações para MAIS ou para MENOS._\n\n👉 Para não perder sua vez, já venha para a barbearia.\n\nAcompanhe em tempo real: {{ $('Verifica Atraso e Busca Fila').item.json.tracking_url_base }}",
+        "text": "=⚠️ *Houve um atraso no atendimento!*\n\nOlá {{ $('Verifica Atraso e Busca Fila').item.json.customer_name }},\n{{ $('Verifica Atraso e Busca Fila').item.json.pessoas_afrente > 0 ? '👥 Há ' + $('Verifica Atraso e Busca Fila').item.json.pessoas_afrente + ' pessoa(s) na sua frente\\n' : '' }}⏳ NOVO horário estimado: *{{ $('Verifica Atraso e Busca Fila').item.json.eta_hora }}*\n\n⚠️ _O horário exibido é apenas uma PREVISÃO, podendo sofrer variações para MAIS ou para MENOS._\n\n👉 Para não perder sua vez, já venha para a barbearia.\n\nAcompanhe em tempo real: {{ $('Verifica Atraso e Busca Fila').item.json.tracking_url_base }}",
         "linkPreview": false,
         "requestOptions": {}
       },
