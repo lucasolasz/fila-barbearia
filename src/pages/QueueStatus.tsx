@@ -17,6 +17,7 @@ import { QueueItem, supabase } from "../lib/supabase";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { FaInstagram } from "react-icons/fa";
 import { getQueueId, clearQueueSession } from "../lib/storage";
+import { normalizeQueuePositions } from "../lib/queuePositions";
 
 export default function QueueStatus() {
   const navigate = useNavigate();
@@ -179,6 +180,10 @@ export default function QueueStatus() {
           .eq("parent_queue_id", queueId)
           .in("status", ["waiting", "serving"]);
       }
+
+      // Fecha o buraco que a saida deixou na numeracao: sem isso quem ficou
+      // para tras continua com um `position` maior que a posicao real.
+      await normalizeQueuePositions();
 
       clearQueueSession();
       navigate("/");

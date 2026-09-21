@@ -1,40 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { QueueItem, supabase } from "../lib/supabase";
-
-async function normalizeQueuePositions() {
-  try {
-    const { data: servingItems } = await supabase
-      .from("queue")
-      .select("id, position, status")
-      .eq("status", "serving")
-      .order("position", { ascending: true });
-
-    const { data: waitingItems } = await supabase
-      .from("queue")
-      .select("id, position, status")
-      .eq("status", "waiting")
-      .order("position", { ascending: true });
-
-    const combined = [...(servingItems || []), ...(waitingItems || [])];
-    const updates: Promise<any>[] = [];
-    for (let i = 0; i < combined.length; i++) {
-      const desiredPos = i + 1;
-      const item = combined[i] as any;
-      if (item.position !== desiredPos) {
-        updates.push(
-          supabase
-            .from("queue")
-            .update({ position: desiredPos })
-            .eq("id", item.id),
-        );
-      }
-    }
-    if (updates.length > 0) await Promise.all(updates);
-  } catch (err) {
-    console.error("Failed to normalize queue positions:", err);
-  }
-}
+import { normalizeQueuePositions } from "../lib/queuePositions";
 
 interface Params {
   queue: QueueItem[];
