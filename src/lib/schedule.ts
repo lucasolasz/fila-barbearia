@@ -49,10 +49,25 @@ export function roundToNearest5(date: Date): Date {
 }
 
 /**
+ * Minutos livres entre o fim da fila e o fechamento.
+ *
+ * Devolve `null` quando nao ha corte a aplicar: sem `close_time` conhecido ou
+ * com a fila ainda nao carregada.
+ *
+ * @param queueTailAt instante em que a fila atual termina de ser atendida
+ * @param closeTime   `close_time` do dia, no formato "HH:MM:SS"
+ */
+export function minutesUntilClosing(
+  queueTailAt: Date | null,
+  closeTime: string | null,
+): number | null {
+  if (!closeTime || !queueTailAt) return null;
+  return timeToMinutes(closeTime) - minutesSinceTodayMidnight(queueTailAt);
+}
+
+/**
  * Regra de corte da fila: o atendimento termina antes do fechamento?
  *
- * @param queueTailAt    instante em que a fila atual termina de ser atendida
- * @param closeTime      `close_time` do dia, no formato "HH:MM:SS"
  * @param serviceMinutes duracao do que o novo cliente pretende fazer
  * @returns `true` quando o atendimento cabe ate o horario de fechamento
  */
@@ -61,11 +76,27 @@ export function fitsBeforeClosing(
   closeTime: string | null,
   serviceMinutes: number,
 ): boolean {
-  // Sem horario de fechamento conhecido ou sem a fila carregada nao ha corte a aplicar.
-  if (!closeTime || !queueTailAt) return true;
+  const available = minutesUntilClosing(queueTailAt, closeTime);
+  return available === null || serviceMinutes <= available;
+}
 
-  const endMinutes = minutesSinceTodayMidnight(queueTailAt) + serviceMinutes;
-  return endMinutes <= timeToMinutes(closeTime);
+/**
+ * Quantas pessoas de `serviceMinutes` ainda cabem antes do fechamento.
+ *
+ * @param max teto de pessoas permitido por entrada na fila
+ */
+export function peopleThatFitBeforeClosing(
+  queueTailAt: Date | null,
+  closeTime: string | null,
+  serviceMinutes: number,
+  max: number,
+): number {
+  const available = minutesUntilClosing(queueTailAt, closeTime);
+  if (available === null) return max;
+  // A guarda de `serviceMinutes` evita que a divisao devolva Infinity.
+  if (available <= 0 || serviceMinutes <= 0) return 0;
+
+  return Math.min(max, Math.floor(available / serviceMinutes));
 }
 
 /** Horario em que o novo cliente comecaria a ser atendido, pronto para exibicao. */

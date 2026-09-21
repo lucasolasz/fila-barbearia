@@ -70,6 +70,9 @@ export const DDD_OPTIONS = [
 
 export type ServiceId = string;
 
+/** Servico pre-selecionado para quem entra na fila sem escolher nada. */
+export const DEFAULT_SERVICE_ID: ServiceId = "cabelo";
+
 export const WEEKDAYS = [
   "Domingo",
   "Segunda-feira",

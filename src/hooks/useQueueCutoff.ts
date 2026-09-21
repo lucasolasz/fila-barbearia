@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { addMinutes } from "date-fns";
 import { fetchQueueTailWaitMinutes } from "./useQueue";
-import { fitsBeforeClosing } from "../lib/schedule";
+import {
+  fitsBeforeClosing,
+  peopleThatFitBeforeClosing,
+} from "../lib/schedule";
 
 /** Mesma cadencia do polling anterior da home — nao aumenta o numero de requisicoes. */
 const REFRESH_INTERVAL_MS = 20000;
@@ -57,5 +60,17 @@ export function useQueueCutoff(closeTime: string | null, enabled: boolean) {
     [enabled, closeTime, queueTailAt],
   );
 
-  return { queueTailAt, loading, refresh, canFit };
+  /**
+   * Quantas pessoas ainda cabem hoje, limitado a `max`.
+   * Com o corte desligado, devolve `max`.
+   */
+  const peopleThatFit = useCallback(
+    (serviceMinutes: number, max: number) =>
+      enabled
+        ? peopleThatFitBeforeClosing(queueTailAt, closeTime, serviceMinutes, max)
+        : max,
+    [enabled, closeTime, queueTailAt],
+  );
+
+  return { queueTailAt, loading, refresh, canFit, peopleThatFit };
 }

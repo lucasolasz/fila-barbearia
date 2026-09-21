@@ -24,7 +24,11 @@ import {
 import { sanitizeNameInput } from "../lib/nameUtils";
 import { supabase } from "../lib/supabase";
 
-import { DDD_OPTIONS, ServiceId } from "../constants/constants";
+import {
+  DDD_OPTIONS,
+  DEFAULT_SERVICE_ID,
+  ServiceId,
+} from "../constants/constants";
 import { useBarberServices } from "../hooks/useBarberServices";
 import { useShopSettings } from "../hooks/useShopSettings";
 import { webhookService } from "../services/webhookService";
@@ -37,6 +41,9 @@ import {
   setQueueSession,
   clearQueueSession,
 } from "../lib/storage";
+
+/** Teto de pessoas por entrada na fila. */
+const MAX_PEOPLE = 5;
 
 function generateCode(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -104,16 +111,34 @@ export default function Home() {
     loading: cutoffLoading,
     refresh: refreshCutoff,
     canFit,
+    peopleThatFit,
   } = useQueueCutoff(closeTime, cutoffEnabled);
 
-  /** Servico mais curto do catalogo: responde "ainda cabe pelo menos uma pessoa hoje?". */
-  const shortestServiceMinutes = useMemo(
+  /**
+   * Duracao de quem entra na fila sem mexer em nada.
+   * E a referencia do corte: usar o servico mais curto do catalogo faria a tela
+   * liberar o formulario para alguem que seria recusado no submit.
+   */
+  const defaultServiceMinutes = useMemo(
     () =>
-      activeServices.length > 0
-        ? Math.min(...activeServices.map((s) => s.duration_minutes))
-        : DEFAULT_SERVICE_MINUTES,
+      calculatePersonDuration([DEFAULT_SERVICE_ID], activeServices) ||
+      DEFAULT_SERVICE_MINUTES,
     [activeServices],
   );
+
+  /** Quantas pessoas ainda cabem hoje com o servico padrao. */
+  const availablePeople = peopleThatFit(defaultServiceMinutes, MAX_PEOPLE);
+
+  const peopleOptions = useMemo(
+    // availablePeople so e 0 quando `isQueueFull` ja esconde o formulario.
+    () => Array.from({ length: Math.max(1, availablePeople) }, (_, i) => i + 1),
+    [availablePeople],
+  );
+
+  // A fila pode crescer com o formulario aberto: nunca deixar a selecao acima do limite.
+  useEffect(() => {
+    setNumberOfPeople((current) => Math.min(current, peopleOptions.length));
+  }, [peopleOptions.length]);
 
   useEffect(() => {
     if (statusLoading) return;
@@ -152,16 +177,17 @@ export default function Home() {
       toast.error("Por favor, insira seu nome");
       return;
     }
-    if (!canFit(numberOfPeople * shortestServiceMinutes)) {
+    if (!canFit(numberOfPeople * defaultServiceMinutes)) {
       toast.error(
-        `Não há tempo para atender ${numberOfPeople} pessoa(s) antes do fechamento (${closeTime?.slice(0, 5)}).`,
+        `A fila encheu. Agora só dá tempo para ${availablePeople} ${
+          availablePeople === 1 ? "pessoa" : "pessoas"
+        } antes do fechamento (${closeTime?.slice(0, 5)}).`,
       );
       return;
     }
-    const initial: ServiceId[][] = Array.from(
-      { length: numberOfPeople },
-      () => ["cabelo"],
-    );
+    const initial: ServiceId[][] = Array.from({ length: numberOfPeople }, () => [
+      DEFAULT_SERVICE_ID,
+    ]);
     setServicesPerPerson(initial);
     setDialogStep(0);
   };
@@ -207,7 +233,7 @@ export default function Home() {
       const freshTail = await refreshCutoff();
       if (!canFit(totalDuration, freshTail)) {
         toast.error(
-          `A fila encheu enquanto você escolhia. O atendimento passaria do nosso horário de fechamento (${closeTime?.slice(0, 5)}).`,
+          `Os serviços escolhidos passariam do nosso horário de fechamento (${closeTime?.slice(0, 5)}). Reduza os serviços ou o número de pessoas.`,
         );
         return;
       }
@@ -273,7 +299,7 @@ export default function Home() {
 
       const nextPosition = (lastEntry?.position || 0) + 1;
 
-      const mainServices = servicesPerPerson[0] ?? (["cabelo"] as ServiceId[]);
+      const mainServices = servicesPerPerson[0] ?? [DEFAULT_SERVICE_ID];
       const mainDuration =
         calculatePersonDuration(mainServices, activeServices) || 30;
 
@@ -306,10 +332,10 @@ export default function Home() {
           .single();
         if (guestErr) throw guestErr;
 
-        const guestServices =
-          servicesPerPerson[i] ?? (["cabelo"] as ServiceId[]);
+        const guestServices = servicesPerPerson[i] ?? [DEFAULT_SERVICE_ID];
         const guestDuration =
-          calculatePersonDuration(guestServices, activeServices) || 30;
+          calculatePersonDuration(guestServices, activeServices) ||
+          DEFAULT_SERVICE_MINUTES;
 
         const { error: guestQueueErr } = await supabase.from("queue").insert([
           {
@@ -363,7 +389,7 @@ export default function Home() {
   };
 
   const estimatedTimeStr = cutoffEnabled ? formatQueueTail(queueTailAt) : "";
-  const isQueueFull = !canFit(shortestServiceMinutes);
+  const isQueueFull = !canFit(defaultServiceMinutes);
 
   const preQueueInfo = (() => {
     if (!openTime || !preOpeningMinutes) return null;
@@ -487,7 +513,7 @@ export default function Home() {
                       }
                       className="h-14 w-full appearance-none rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-lg text-white shadow-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-900/30 outline-none"
                     >
-                      {[1, 2, 3, 4, 5].map((n) => (
+                      {peopleOptions.map((n) => (
                         <option key={n} value={n}>
                           {n} {n === 1 ? "pessoa" : "pessoas"}
                         </option>
@@ -499,6 +525,13 @@ export default function Home() {
                       </svg>
                     </div>
                   </div>
+                  {cutoffEnabled && closeTime && availablePeople < MAX_PEOPLE && (
+                    <p className="mt-2 text-sm text-amber-400">
+                      Hoje ainda dá tempo para {availablePeople}{" "}
+                      {availablePeople === 1 ? "pessoa" : "pessoas"} antes do
+                      fechamento ({closeTime.slice(0, 5)}).
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-neutral-300">
