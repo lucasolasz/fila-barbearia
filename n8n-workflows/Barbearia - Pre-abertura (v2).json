@@ -49,6 +49,41 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "65f02021-c83f-4add-8714-91e3747f981d",
+              "leftValue": "={{ $json.queue_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        7104,
+        2800
+      ],
+      "id": "d7cd1ae4-b4c7-4445-831d-8d3a6099c9dc",
+      "name": "Tem Cliente Para Avisar"
+    },
+    {
+      "parameters": {
         "resource": "Contacts",
         "operation": "Check Exists",
         "session": "=default",
@@ -60,7 +95,7 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        7104,
+        7328,
         2800
       ],
       "notesInFlow": true,
@@ -88,7 +123,7 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        7328,
+        7552,
         2800
       ],
       "notesInFlow": true,
@@ -104,15 +139,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.queue\nSET last_update_sent_at = now(),\n    last_sent_eta       = {{ $('Abertura e Fila').item.json.eta_min }}\nWHERE id = '{{ $('Abertura e Fila').item.json.queue_id }}'::uuid",
-        "options": {}
+        "query": "UPDATE public.queue\nSET last_update_sent_at = now(),\n    last_sent_eta       = $2\nWHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ $('Abertura e Fila').item.json.queue_id }},{{ $('Abertura e Fila').item.json.eta_min }}"
+        }
       },
       "id": "af764924-fd3a-464e-b5e7-ee45a6d79b4f",
       "name": "Marca Aviso Enviado",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        7552,
+        7776,
         2800
       ],
       "notesInFlow": true,
@@ -142,7 +179,7 @@
       "main": [
         [
           {
-            "node": "Valida WhatsApp",
+            "node": "Tem Cliente Para Avisar",
             "type": "main",
             "index": 0
           }
@@ -165,6 +202,17 @@
         [
           {
             "node": "Marca Aviso Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Cliente Para Avisar": {
+      "main": [
+        [
+          {
+            "node": "Valida WhatsApp",
             "type": "main",
             "index": 0
           }

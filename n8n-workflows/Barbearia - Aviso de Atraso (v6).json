@@ -48,6 +48,41 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3c204e68-5267-464f-847f-41da5ceea30f",
+              "leftValue": "={{ $json.queue_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        4176,
+        -976
+      ],
+      "id": "3c209c2f-8702-4909-9233-5bf129ab3fec",
+      "name": "Tem Cliente Para Avisar"
+    },
+    {
+      "parameters": {
         "resource": "Contacts",
         "operation": "Check Exists",
         "session": "=default",
@@ -59,7 +94,7 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        4176,
+        4400,
         -976
       ],
       "notesInFlow": true,
@@ -87,7 +122,7 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        4400,
+        4624,
         -880
       ],
       "notesInFlow": true,
@@ -103,15 +138,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.queue\nSET last_delay_sent_at = now(),\n    last_sent_eta      = {{ $('Verifica Atraso e Busca Fila').item.json.eta_min }}\nWHERE id = '{{ $('Verifica Atraso e Busca Fila').item.json.queue_id }}'::uuid",
-        "options": {}
+        "query": "UPDATE public.queue\nSET last_delay_sent_at = now(),\n    last_sent_eta      = $2\nWHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ $('Verifica Atraso e Busca Fila').item.json.queue_id }},{{ $('Verifica Atraso e Busca Fila').item.json.eta_min }}"
+        }
       },
       "id": "5ae02065-958e-4395-8117-bc802e40d8ce",
       "name": "Marca Aviso Enviado",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        4624,
+        4848,
         -880
       ],
       "notesInFlow": true,
@@ -136,7 +173,7 @@
       "type": "@devlikeapro/n8n-nodes-waha.WAHA",
       "typeVersion": 202502,
       "position": [
-        4400,
+        4624,
         -1072
       ],
       "id": "1d6ad27a-872d-4b20-9364-ba1fae0c8dd3",
@@ -166,7 +203,7 @@
       "main": [
         [
           {
-            "node": "Valida WhatsApp",
+            "node": "Tem Cliente Para Avisar",
             "type": "main",
             "index": 0
           }
@@ -194,6 +231,17 @@
         [
           {
             "node": "Marca Aviso Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Cliente Para Avisar": {
+      "main": [
+        [
+          {
+            "node": "Valida WhatsApp",
             "type": "main",
             "index": 0
           }
