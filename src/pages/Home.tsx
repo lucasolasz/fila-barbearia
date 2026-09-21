@@ -11,15 +11,16 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { useQueueCount, useShopStatus } from "../hooks/useQueue";
+import { useQueueCutoff } from "../hooks/useQueueCutoff";
 import {
-  calculateEstimatedServiceTimeDynamic,
+  DEFAULT_SERVICE_MINUTES,
+  formatQueueTail,
   timeToMinutes,
-  useQueueCount,
-  useShopStatus,
-} from "../hooks/useQueue";
+} from "../lib/schedule";
 import { sanitizeNameInput } from "../lib/nameUtils";
 import { supabase } from "../lib/supabase";
 
@@ -84,7 +85,7 @@ export default function Home() {
   } = useShopStatus();
   const queueCount = useQueueCount();
   const navigate = useNavigate();
-  const { activeServices } = useBarberServices();
+  const { activeServices, loading: servicesLoading } = useBarberServices();
   const {
     shopName,
     logoUrl,
@@ -95,6 +96,24 @@ export default function Home() {
     isPreOpening,
     loading: settingsLoading,
   } = useShopSettings();
+
+  // Decisao de produto: durante o almoco e a pre-abertura o corte fica desligado.
+  const cutoffEnabled = !isLunchPaused && !isPreOpening;
+  const {
+    queueTailAt,
+    loading: cutoffLoading,
+    refresh: refreshCutoff,
+    canFit,
+  } = useQueueCutoff(closeTime, cutoffEnabled);
+
+  /** Servico mais curto do catalogo: responde "ainda cabe pelo menos uma pessoa hoje?". */
+  const shortestServiceMinutes = useMemo(
+    () =>
+      activeServices.length > 0
+        ? Math.min(...activeServices.map((s) => s.duration_minutes))
+        : DEFAULT_SERVICE_MINUTES,
+    [activeServices],
+  );
 
   useEffect(() => {
     if (statusLoading) return;
@@ -133,6 +152,12 @@ export default function Home() {
       toast.error("Por favor, insira seu nome");
       return;
     }
+    if (!canFit(numberOfPeople * shortestServiceMinutes)) {
+      toast.error(
+        `Não há tempo para atender ${numberOfPeople} pessoa(s) antes do fechamento (${closeTime?.slice(0, 5)}).`,
+      );
+      return;
+    }
     const initial: ServiceId[][] = Array.from(
       { length: numberOfPeople },
       () => ["cabelo"],
@@ -166,9 +191,27 @@ export default function Home() {
 
   const handleJoinSubmit = async () => {
     setLoading(true);
+
     const fullPhone = `${ddd}${phone}`;
 
     try {
+      const totalDuration = servicesPerPerson.reduce(
+        (total, services) =>
+          total +
+          (calculatePersonDuration(services, activeServices) ||
+            DEFAULT_SERVICE_MINUTES),
+        0,
+      );
+
+      // A fila pode ter enchido enquanto o cliente escolhia os servicos.
+      const freshTail = await refreshCutoff();
+      if (!canFit(totalDuration, freshTail)) {
+        toast.error(
+          `A fila encheu enquanto você escolhia. O atendimento passaria do nosso horário de fechamento (${closeTime?.slice(0, 5)}).`,
+        );
+        return;
+      }
+
       let customerId: string;
       const { data: existingCustomer, error: fetchError } = await supabase
         .from("customers")
@@ -319,39 +362,8 @@ export default function Home() {
     }
   };
 
-  const [estimatedTimeStr, setEstimatedTimeStr] = useState("Agora");
-  const queueCountRef = useRef(queueCount);
-
-  useEffect(() => {
-    queueCountRef.current = queueCount;
-  }, [queueCount]);
-
-  useEffect(() => {
-    if (isPreOpening || isLunchPaused) {
-      setEstimatedTimeStr("");
-      return;
-    }
-    let mounted = true;
-    async function calc() {
-      const eta = await calculateEstimatedServiceTimeDynamic(queueCountRef.current + 1);
-      if (mounted) setEstimatedTimeStr(eta);
-    }
-    calc();
-    const interval = setInterval(calc, 20000); // cadencia estavel, nao recria a cada mudanca de queueCount
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [isLunchPaused, isPreOpening]); // queueCount removido de proposito
-  const isQueueFull = (() => {
-    if (!closeTime) return false;
-    const closeMinutes = timeToMinutes(closeTime);
-    const estimatedMinutes =
-      estimatedTimeStr === "Agora"
-        ? new Date().getHours() * 60 + new Date().getMinutes()
-        : timeToMinutes(estimatedTimeStr);
-    return estimatedMinutes >= closeMinutes;
-  })();
+  const estimatedTimeStr = cutoffEnabled ? formatQueueTail(queueTailAt) : "";
+  const isQueueFull = !canFit(shortestServiceMinutes);
 
   const preQueueInfo = (() => {
     if (!openTime || !preOpeningMinutes) return null;
@@ -376,7 +388,7 @@ export default function Home() {
     return { timeStr, durationStr };
   })();
 
-  if (statusLoading || settingsLoading) {
+  if (statusLoading || settingsLoading || cutoffLoading || servicesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-950">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
@@ -435,10 +447,11 @@ export default function Home() {
           </div>
         ) : isQueueFull ? (
           <div className="rounded-2xl bg-amber-900/20 p-6 text-amber-400 shadow-sm border border-amber-900/30">
-            <p className="font-medium">A fila está lotada no momento.</p>
+            <p className="font-medium">Não dá mais tempo hoje.</p>
             <p className="mt-1 text-sm opacity-90">
-              O tempo estimado de atendimento ultrapassa nosso horário limite de{" "}
-              {closeTime?.slice(0, 5)}. Por favor, tente novamente outro dia.
+              A fila atual já ocupa todo o tempo até o nosso horário de
+              fechamento ({closeTime?.slice(0, 5)}). Por favor, tente novamente
+              outro dia.
             </p>
           </div>
         ) : (

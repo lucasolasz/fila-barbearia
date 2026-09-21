@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase, Schedule, ScheduleException, QueueItem } from "../lib/supabase";
-import { format, getDay, parseISO, addMinutes } from "date-fns";
+import { format, getDay, addMinutes } from "date-fns";
+import { DEFAULT_SERVICE_MINUTES, roundToNearest5 } from "../lib/schedule";
 
 export function useShopStatus() {
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
@@ -149,177 +150,169 @@ export function useShopStatus() {
   return { isOpen, message, closeTime, openTime, preOpeningMinutes, loading };
 }
 
-export function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
+/* -------------------------------------------------------------------------- */
+/* Primitivas da fila                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** Media usada como fallback quando nao da para calcular pela fila real. */
+const FALLBACK_AVG_MINUTES = 37;
+
+/** Entradas ativas (waiting + serving) ordenadas por posicao. */
+async function fetchActiveQueue(): Promise<QueueItem[]> {
+  const { data } = await supabase
+    .from("queue")
+    .select("position, status, service_start, service_duration")
+    .in("status", ["waiting", "serving"])
+    .order("position", { ascending: true });
+
+  return (data ?? []) as QueueItem[];
 }
 
-function roundToNearest5(date: Date): Date {
-  const d = new Date(date);
-  const minutes = d.getMinutes();
-  const rounded = Math.round(minutes / 5) * 5;
-  if (rounded >= 60) {
-    d.setHours(d.getHours() + 1);
-    d.setMinutes(rounded - 60);
-  } else {
-    d.setMinutes(rounded);
-  }
-  d.setSeconds(0);
-  d.setMilliseconds(0);
-  return d;
+/** A entrada que esta em atendimento agora, se houver. */
+function findServingEntry(entries: QueueItem[]): QueueItem | undefined {
+  return entries.find((entry: QueueItem) => entry.status === "serving");
 }
 
+/** Entradas que estao a frente de quem ocupa `posicaoNaFila`. */
+function entriesAhead(entries: QueueItem[], posicaoNaFila: number): QueueItem[] {
+  const servingCount = findServingEntry(entries) ? 1 : 0;
+  const waiting = entries.filter((entry: QueueItem) => entry.status === "waiting");
+  return waiting.slice(0, Math.max(0, posicaoNaFila - 1 - servingCount));
+}
+
+/** Soma das duracoes previstas de uma lista de entradas. */
+function sumDurations(entries: QueueItem[]): number {
+  return entries.reduce(
+    (total: number, entry: QueueItem) =>
+      total + (entry.service_duration ?? DEFAULT_SERVICE_MINUTES),
+    0,
+  );
+}
+
+/**
+ * Minutos que ainda faltam para esta entrada terminar.
+ *
+ * Uma entrada em atendimento sem `service_start` conta a duracao inteira,
+ * porque nao da para saber quando comecou.
+ */
+function remainingMinutes(entry: QueueItem, now: Date): number {
+  const duration = entry.service_duration ?? DEFAULT_SERVICE_MINUTES;
+  if (entry.status !== "serving" || !entry.service_start) return duration;
+
+  const elapsed = Math.max(
+    0,
+    Math.round((now.getTime() - new Date(entry.service_start).getTime()) / 60000),
+  );
+  return Math.max(0, duration - elapsed);
+}
+
+/**
+ * Instante em que a cadeira fica livre: o fim projetado de quem esta em
+ * atendimento, ou agora — inclusive quando o atendimento ja passou do previsto.
+ */
+function nextFreeSlot(servingEntry: QueueItem | undefined, now: Date): Date {
+  if (!servingEntry?.service_start) return now;
+
+  const projectedEnd = addMinutes(
+    new Date(servingEntry.service_start),
+    servingEntry.service_duration ?? DEFAULT_SERVICE_MINUTES,
+  );
+  return projectedEnd.getTime() > now.getTime() ? projectedEnd : now;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Estimativas de atendimento                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Estimativa grosseira por media fixa, usada quando a fila real nao esta disponivel. */
 export function calculateEstimatedServiceTime(
   posicaoNaFila: number,
-  avgDuration = 37,
+  avgDuration = FALLBACK_AVG_MINUTES,
 ): string {
   if (posicaoNaFila <= 1) return "Agora";
 
   const pessoasNaFrente = posicaoNaFila - 1;
-  const totalMinutes = pessoasNaFrente * avgDuration;
-  const now = new Date();
-  const rawTime = addMinutes(now, totalMinutes);
+  const rawTime = addMinutes(new Date(), pessoasNaFrente * avgDuration);
   return format(roundToNearest5(rawTime), "HH:mm");
 }
 
+/** Horario estimado de inicio para `posicaoNaFila`, a partir de entradas ja carregadas. */
 export function calculateEstimatedServiceTimeFromEntries(
   posicaoNaFila: number,
   activeEntries: QueueItem[],
 ): string {
-  const now = new Date();
-  const servingEntry = activeEntries.find((e: QueueItem) => e.status === "serving");
-  const servingCount = servingEntry ? 1 : 0;
+  const servingEntry = findServingEntry(activeEntries);
 
   if (!servingEntry && posicaoNaFila <= 1) return "Agora";
   if (posicaoNaFila <= 0) return "Agora";
 
-  let baseStart: Date;
-  if (servingEntry?.service_start) {
-    const duration = servingEntry.service_duration ?? 30;
-    const started = new Date(servingEntry.service_start);
-    const projectedEnd = addMinutes(started, duration);
-    baseStart = projectedEnd.getTime() > now.getTime() ? projectedEnd : now;
-  } else {
-    baseStart = now;
-  }
-
-  const waitingEntries = activeEntries.filter((e: QueueItem) => e.status === "waiting");
-  const waitingAheadEntries = waitingEntries.slice(
-    0,
-    Math.max(0, posicaoNaFila - 1 - servingCount),
-  );
-  const shiftByMinutes = waitingAheadEntries.reduce(
-    (sum: number, e: QueueItem) => sum + (e.service_duration ?? 30),
-    0,
+  const now = new Date();
+  const baseStart = nextFreeSlot(servingEntry, now);
+  const rawStart = addMinutes(
+    baseStart,
+    sumDurations(entriesAhead(activeEntries, posicaoNaFila)),
   );
 
-  const rawStart = addMinutes(baseStart, shiftByMinutes);
   return format(roundToNearest5(rawStart), "HH:mm");
 }
 
+/** Horario estimado de inicio para `posicaoNaFila`, consultando a fila no banco. */
 export async function calculateEstimatedServiceTimeDynamic(
   posicaoNaFila: number,
 ): Promise<string> {
-  const now = new Date();
-
   try {
-    const { data } = await supabase
-      .from("queue")
-      .select("position, status, service_start, service_duration")
-      .in("status", ["waiting", "serving"])
-      .order("position", { ascending: true });
+    const activeEntries = await fetchActiveQueue();
+    if (activeEntries.length === 0) return "Agora";
 
-    const activeEntries = data as QueueItem[] | null;
-
-    if (!activeEntries || activeEntries.length === 0) return "Agora";
-
-    const servingEntry = activeEntries.find((e: QueueItem) => e.status === "serving");
-    const servingCount = servingEntry ? 1 : 0;
-
-    if (!servingEntry && posicaoNaFila <= 1) return "Agora";
-    if (posicaoNaFila <= 0) return "Agora";
-
-    let baseStart: Date;
-
-    if (servingEntry?.service_start) {
-      const duration = servingEntry.service_duration ?? 30;
-      const started = new Date(servingEntry.service_start);
-      const projectedEnd = addMinutes(started, duration);
-      baseStart = projectedEnd.getTime() > now.getTime() ? projectedEnd : now;
-    } else {
-      baseStart = now;
-    }
-
-    const waitingEntries = activeEntries.filter((e: QueueItem) => e.status === "waiting");
-    const waitingAheadEntries = waitingEntries.slice(
-      0,
-      Math.max(0, posicaoNaFila - 1 - servingCount),
-    );
-    const shiftByMinutes = waitingAheadEntries.reduce(
-      (sum: number, e: QueueItem) => sum + (e.service_duration ?? 30),
-      0,
-    );
-
-    const rawStart = addMinutes(baseStart, shiftByMinutes);
-    return format(roundToNearest5(rawStart), "HH:mm");
+    return calculateEstimatedServiceTimeFromEntries(posicaoNaFila, activeEntries);
   } catch (error) {
     console.error("Error calculating dynamic ETA:", error);
     return calculateEstimatedServiceTime(posicaoNaFila);
   }
 }
 
+/** Minutos de espera ate `posicaoNaFila` ser chamada. */
 export async function calculateEstimatedMinutes(
   posicaoNaFila: number,
 ): Promise<number> {
   if (posicaoNaFila <= 0) return 0;
 
   try {
-    const { data } = await supabase
-      .from("queue")
-      .select("position, status, service_start, service_duration")
-      .in("status", ["waiting", "serving"])
-      .order("position", { ascending: true });
-
-    const activeEntries = data as QueueItem[] | null;
-
-    if (!activeEntries) return 0;
-
-    const servingEntry = activeEntries.find((e: QueueItem) => e.status === "serving");
-    const servingCount = servingEntry ? 1 : 0;
+    const activeEntries = await fetchActiveQueue();
+    const servingEntry = findServingEntry(activeEntries);
 
     if (!servingEntry && posicaoNaFila <= 1) return 0;
 
     const now = new Date();
-    let remainingCurrent = 0;
-
-    if (servingEntry?.service_start) {
-      const duration = servingEntry.service_duration ?? 30;
-      const started = new Date(servingEntry.service_start);
-      const elapsed = Math.max(
-        0,
-        Math.round((now.getTime() - started.getTime()) / 60000),
-      );
-      remainingCurrent = Math.max(0, duration - elapsed);
-    } else if (servingEntry) {
-      remainingCurrent = servingEntry.service_duration ?? 30;
-    }
-
-    const waitingEntries = activeEntries.filter((e: QueueItem) => e.status === "waiting");
-    const waitingAheadEntries = waitingEntries.slice(
-      0,
-      Math.max(0, posicaoNaFila - 1 - servingCount),
-    );
-    const waitingMinutes = waitingAheadEntries.reduce(
-      (sum: number, e: QueueItem) => sum + (e.service_duration ?? 30),
-      0,
-    );
+    const remainingCurrent = servingEntry ? remainingMinutes(servingEntry, now) : 0;
+    const waitingMinutes = sumDurations(entriesAhead(activeEntries, posicaoNaFila));
 
     return Math.max(0, Math.round(remainingCurrent + waitingMinutes));
   } catch (error) {
     console.error("Error calculating dynamic ETA minutes:", error);
-    return Math.max(0, (posicaoNaFila - 1) * 37);
+    return Math.max(0, (posicaoNaFila - 1) * FALLBACK_AVG_MINUTES);
   }
 }
+
+/**
+ * Minutos ate a fila atual esvaziar por completo.
+ *
+ * Nao recebe posicao de proposito: quem ainda nao entrou sempre cai no fim da
+ * fila, entao o valor nao depende do contador da tela.
+ */
+export async function fetchQueueTailWaitMinutes(): Promise<number> {
+  const entries = await fetchActiveQueue();
+  const now = new Date();
+
+  return entries.reduce(
+    (total: number, entry: QueueItem) => total + remainingMinutes(entry, now),
+    0,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hooks auxiliares                                                            */
+/* -------------------------------------------------------------------------- */
 
 export function useQueueCount() {
   const [count, setCount] = useState<number>(0);
@@ -359,18 +352,21 @@ export function useQueueCount() {
 }
 
 export function useAverageServiceTime() {
-  return 37;
+  return FALLBACK_AVG_MINUTES;
 }
 
+/** Faixa "min - max" mostrada ao cliente, baseada no tempo base configurado no admin. */
 export function calculateEstimatedWaitTime(
   posicaoNaFila: number,
   baseQueueTime: number | null,
 ): string {
   if (posicaoNaFila <= 0) return "0 min";
-  const tempoBase = baseQueueTime == null ? 30 : baseQueueTime;
+
+  const tempoBase = baseQueueTime ?? DEFAULT_SERVICE_MINUTES;
   const tempoEstimado = posicaoNaFila * tempoBase;
   const margem = Math.floor(tempoEstimado * 0.2);
-  let minimo = Math.max(tempoEstimado - margem, 5);
-  let maximo = tempoEstimado + margem;
+
+  const minimo = Math.max(tempoEstimado - margem, 5);
+  const maximo = tempoEstimado + margem;
   return `${minimo} - ${maximo} min`;
 }
