@@ -2,6 +2,10 @@
 
 Fila digital para uma barbearia com apenas 1 barbeiro.
 
+# Regras de negocio
+
+- O cliente que esta com status serving é a posicao 1 da fila.
+
 # Locais de hospedagem
 
 - Projeto de producao esta hospedado na Vercel.
