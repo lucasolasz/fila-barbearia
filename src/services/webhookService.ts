@@ -13,11 +13,16 @@ export function joinedEventFor(
   return "JOINED";
 }
 
+/**
+ * O n8n busca título, mensagem e destinatários no banco pelo id
+ * (tabelas campaigns e campaign_recipients).
+ */
 export interface CampaignWebhookPayload {
-  titulo_campanha: string;
-  mensagem_texto: string;
-  destinatarios: { nome: string; numero: string }[];
+  campaign_id: string;
 }
+
+/** Id que não existe no banco: o teste chega ao n8n, mas nenhuma mensagem é enviada. */
+const CAMPAIGN_TEST_ID = "00000000-0000-0000-0000-000000000000";
 
 export interface WebhookPayload {
   type: "QUEUE_UPDATE";
@@ -130,11 +135,7 @@ class WebhookService {
     if (!webhookUrl)
       return { success: false, message: "URL do webhook não configurada." };
 
-    const payload: CampaignWebhookPayload = {
-      titulo_campanha: "Campanha Teste",
-      mensagem_texto: "Esta é uma mensagem de teste de campanha.",
-      destinatarios: [{ nome: "Cliente Teste", numero: "5511999999999" }],
-    };
+    const payload: CampaignWebhookPayload = { campaign_id: CAMPAIGN_TEST_ID };
 
     let finalWebhookUrl = webhookUrl.trim();
     if (
@@ -157,7 +158,7 @@ class WebhookService {
       if (response.ok) {
         return {
           success: true,
-          message: "Webhook enviado com sucesso! Verifique seu n8n.",
+          message: "URL respondeu! Teste usa campanha inexistente: nenhuma mensagem é enviada.",
         };
       } else {
         return {
