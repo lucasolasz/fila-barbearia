@@ -452,9 +452,12 @@ export default function AdminCampaigns() {
       toast.success(
         `Campanha disparada para ${selectedContacts.length} contatos! Acompanhe o progresso em "Enviadas".`,
       );
+      // Fecha o formulário e abre "Enviadas" para o barbeiro acompanhar o progresso.
       setCampaignTitle("");
       setMessageText("");
       setSelectedContacts([]);
+      setShowForm(false);
+      setShowSent(true);
       fetchSentCampaigns();
     } catch (error) {
       toast.error("Falha ao enviar campanha");
