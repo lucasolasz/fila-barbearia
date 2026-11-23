@@ -413,7 +413,7 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [1472, 0],
+      "position": [1696, 0],
       "id": "7d4c8a98-66d4-4894-8319-2787698a2099",
       "name": "Marcar Campanha Concluída",
       "executeOnce": true,
@@ -421,6 +421,43 @@
       "maxTries": 3,
       "waitBetweenTries": 2000,
       "notes": "executeOnce: o 'done' do loop entrega todos os itens; basta um update.",
+      "credentials": {
+        "supabaseApi": {
+          "id": "pIVLLDv2LCj2MjP1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "campaign_recipients",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "campaign_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Extrair Dados').item.json.campaign_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "sent"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1472, 0],
+      "id": "e2b8d4f1-7c3a-4a96-b5e0-3f1d9c6a8b72",
+      "name": "Limpar Enviados",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "campaign_recipients guarda só pendências: quem recebeu sai da tabela. Sobram error/invalid_number para o barbeiro resolver na tela. alwaysOutputData: segue para 'Marcar Campanha Concluída' mesmo sem nada para apagar.",
       "credentials": {
         "supabaseApi": {
           "id": "pIVLLDv2LCj2MjP1",
@@ -485,6 +522,17 @@
         ]
       ]
     },
+    "Limpar Enviados": {
+      "main": [
+        [
+          {
+            "node": "Marcar Campanha Concluída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Tem pendentes?": {
       "main": [
         [
@@ -496,7 +544,7 @@
         ],
         [
           {
-            "node": "Marcar Campanha Concluída",
+            "node": "Limpar Enviados",
             "type": "main",
             "index": 0
           }
@@ -507,7 +555,7 @@
       "main": [
         [
           {
-            "node": "Marcar Campanha Concluída",
+            "node": "Limpar Enviados",
             "type": "main",
             "index": 0
           }

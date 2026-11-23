@@ -114,7 +114,9 @@ create table IF NOT EXISTS public.campaigns (
   )
 ) TABLESPACE pg_default;
 
--- 7b. Campaign Recipients Table (fila de envio por destinatário, permite acompanhar progresso)
+-- 7b. Campaign Recipients Table (fila de envio + pendências)
+-- O site grava 'pending'; o n8n marca sent/error/invalid_number e, no fim, apaga os 'sent'.
+-- Depois do envio só sobram contatos com problema, resolvidos pelo barbeiro na tela.
 create table IF NOT EXISTS public.campaign_recipients (
   id uuid not null default gen_random_uuid (),
   campaign_id uuid not null references public.campaigns (id) on delete cascade,

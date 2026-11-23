@@ -1,13 +1,17 @@
 -- =====================================
--- V04 — Campanhas v2: fila de destinatários + status de envio
+-- V04 — Campanhas v2: fila de envio / pendências + status de envio
 -- =====================================
 -- Fluxo:
 --   1. O admin (tela Campanhas) grava a campanha com send_status = 'sending'.
 --   2. Grava um destinatário por contato em campaign_recipients, status 'pending'.
 --   3. Chama o webhook do n8n só com { campaign_id }.
 --   4. O n8n ("Barbearia - Campanha") lê os 'pending', envia um por um e marca
---      cada linha como 'sent', 'error' ou 'invalid_number'. No fim marca a
---      campanha como 'completed'.
+--      cada linha como 'sent', 'error' ou 'invalid_number'.
+--   5. No fim o n8n APAGA as linhas 'sent' e marca a campanha como 'completed'.
+--
+-- campaign_recipients não é histórico: depois do envio só sobram os contatos
+-- com problema (error / invalid_number). O barbeiro resolve cada um na tela
+-- (tentar novamente ou excluir da campanha). Sem linhas = campanha concluída.
 --
 -- Idempotente: a base de desenvolvimento já tem estas estruturas (vieram do
 -- branch feat-campanhas). Pode rodar em qualquer ambiente sem erro.
@@ -44,6 +48,9 @@ CREATE TABLE IF NOT EXISTS public.campaign_recipients (
 
 CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign_status
   ON public.campaign_recipients (campaign_id, status);
+
+-- Limpa o histórico antigo: envios com sucesso não ficam mais guardados.
+DELETE FROM public.campaign_recipients WHERE status = 'sent';
 
 ALTER TABLE public.campaign_recipients ENABLE ROW LEVEL SECURITY;
 

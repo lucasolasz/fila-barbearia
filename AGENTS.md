@@ -16,7 +16,7 @@ Fila digital para uma barbearia com apenas 1 barbeiro.
 - Toda mensagem de envio unico (NEXT, NEAR, entrada) e marcada no banco ANTES de enviar (`src/lib/queueNotificationFlags.ts`), para dois paineis abertos nao enviarem em dobro.
 - Mensagem de entrada (JOINED) sai do site do cliente e grava `joined_notified_at`. Se ficar vazia por mais de 1 min, o painel do barbeiro reenvia.
 - Atendimento estourado: a duracao vira "tempo decorrido + 10 min" (teto 180) a cada ciclo do n8n.
-- Campanha: o site grava a campanha e os destinatarios (`campaign_recipients`, status `pending`) e chama o n8n so com `{ campaign_id }`. O n8n envia apenas os `pending`. Sem envio ha 10 min, a tela mostra "Interrompida" e permite "Retomar envio", que chama o n8n de novo sem reenviar para quem ja recebeu. Regra em `src/lib/campaignProgress.ts`.
+- Campanha: o site grava a campanha e os destinatarios (`campaign_recipients`, status `pending`) e chama o n8n so com `{ campaign_id }`. O n8n envia apenas os `pending` e, no fim, APAGA os `sent`. A tabela nao e historico: depois do envio so sobram contatos com problema (`error` / `invalid_number`), que o barbeiro resolve na tela ("Tentar novamente" volta para `pending` e chama o n8n; "Excluir da campanha" apaga a linha e diminui `recipient_count`). Concluida = sem pendencias. Enviados = `recipient_count - pendentes - com problema`. Sem envio ha 10 min, a tela mostra "Interrompida" e permite "Retomar envio". Regra em `src/lib/campaignProgress.ts`.
 
 # Locais de hospedagem
 

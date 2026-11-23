@@ -23,14 +23,18 @@ import {
   CampaignDisplayStatus,
   CampaignStats,
   campaignDisplayStatus,
+  canResolveIssues,
   canResumeCampaign,
+  sentCount,
   summarizeRecipients,
 } from "../lib/campaignProgress";
+import CampaignIssues from "../components/admin/CampaignIssues";
 
 const STATUS_VIEW: Record<CampaignDisplayStatus, { label: string; color: string }> = {
   sending: { label: "Enviando...", color: "text-amber-400" },
   stalled: { label: "Interrompida", color: "text-red-500" },
   failed: { label: "Falhou ao iniciar", color: "text-red-500" },
+  needs_attention: { label: "Com pendências", color: "text-amber-400" },
   completed: { label: "Concluída", color: "text-emerald-500" },
 };
 
@@ -56,6 +60,8 @@ export default function AdminCampaigns() {
   const [showForm, setShowForm] = useState(false);
   const [recipientStats, setRecipientStats] = useState<Record<string, CampaignStats>>({});
   const [resumingId, setResumingId] = useState<string | null>(null);
+  // Campanha com o painel "Contatos com problema" aberto.
+  const [issuesCampaignId, setIssuesCampaignId] = useState<string | null>(null);
   // Relógio da tela: faz "Enviando..." virar "Interrompida" sem precisar recarregar.
   const [now, setNow] = useState(() => new Date());
   const { shopName, logoUrl, campaignWebhookUrl } = useShopSettings();
@@ -345,6 +351,44 @@ export default function AdminCampaigns() {
     }
   };
 
+  /** Contatos com problema voltam para 'pending' e o n8n é chamado de novo (só envia os pendentes). */
+  const handleRetryIssues = async (campaignId: string, recipientIds: string[]) => {
+    if (!campaignWebhookUrl) {
+      toast.error("URL do webhook de campanhas não configurada. Configure em Admin → Configurações.");
+      return;
+    }
+    const { error } = await supabase
+      .from("campaign_recipients")
+      .update({ status: "pending", error_message: null })
+      .in("id", recipientIds);
+    if (error) {
+      toast.error("Falha ao preparar novo envio");
+      return;
+    }
+    if (await startCampaignSend(campaignId)) {
+      toast.success(`Reenviando para ${recipientIds.length} contato(s).`);
+    } else {
+      toast.error("n8n não aceitou o reenvio. Use \"Retomar envio\" para tentar de novo.");
+    }
+    await fetchSentCampaigns();
+    setNow(new Date());
+  };
+
+  /** Tira os contatos da campanha: apaga a pendência e diminui o total de destinatários. */
+  const handleRemoveIssues = async (campaign: Campaign, recipientIds: string[]) => {
+    const { error } = await supabase.from("campaign_recipients").delete().in("id", recipientIds);
+    if (error) {
+      toast.error("Falha ao excluir contatos da campanha");
+      return;
+    }
+    await supabase
+      .from("campaigns")
+      .update({ recipient_count: Math.max(0, campaign.recipient_count - recipientIds.length) })
+      .eq("id", campaign.id);
+    toast.success(`${recipientIds.length} contato(s) excluído(s) da campanha.`);
+    await fetchSentCampaigns();
+  };
+
   const handleSendCampaign = async () => {
     if (
       !campaignTitle.trim() ||
@@ -542,14 +586,20 @@ export default function AdminCampaigns() {
                               const stats = recipientStats[campaign.id];
                               const status = campaignDisplayStatus(campaign, stats, now);
                               const { label, color } = STATUS_VIEW[status];
-                              const total = stats?.total || campaign.recipient_count;
                               return (
                                 <div className="mt-2 space-y-0.5">
                                   <p className={`text-xs font-bold ${color}`}>{label}</p>
                                   <p className="text-xs text-neutral-500">
-                                    {stats?.sent || 0}/{total} enviadas
-                                    {!!stats?.failed && ` · ${stats.failed} com erro`}
+                                    {sentCount(campaign, stats)}/{campaign.recipient_count} enviadas
                                   </p>
+                                  {!!stats?.failed && (
+                                    <button
+                                      onClick={() => setIssuesCampaignId(campaign.id)}
+                                      className="mt-1 block text-xs font-bold text-amber-400 hover:text-amber-300 underline"
+                                    >
+                                      Resolver ({stats.failed} com problema)
+                                    </button>
+                                  )}
                                   {canResumeCampaign(status) && (
                                     <button
                                       onClick={() => handleResumeCampaign(campaign.id)}
@@ -908,6 +958,23 @@ export default function AdminCampaigns() {
         </div>
         )}
       </main>
+
+      {(() => {
+        const campaign = sentCampaigns.find((c) => c.id === issuesCampaignId);
+        if (!campaign) return null;
+        const stats = recipientStats[campaign.id];
+        return (
+          <CampaignIssues
+            campaignId={campaign.id}
+            campaignTitle={campaign.title}
+            failedCount={stats?.failed ?? 0}
+            canResolve={canResolveIssues(campaignDisplayStatus(campaign, stats, now))}
+            onRetry={(ids) => handleRetryIssues(campaign.id, ids)}
+            onRemove={(ids) => handleRemoveIssues(campaign, ids)}
+            onClose={() => setIssuesCampaignId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
