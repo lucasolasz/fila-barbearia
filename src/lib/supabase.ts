@@ -118,6 +118,13 @@ export type BarberService = {
   created_at: string;
 };
 
+/** Uma versão do prompt do agente de WhatsApp. A vigente é a mais recente. */
+export type AgentPromptVersion = {
+  id: string;
+  content: string;
+  created_at: string;
+};
+
 export type ShopSettings = {
   id: string;
   manual_status: "auto" | "open" | "closed";

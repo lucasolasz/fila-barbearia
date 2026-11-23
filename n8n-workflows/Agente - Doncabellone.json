@@ -1,0 +1,1802 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "102d56cd-e95c-4c10-8532-fd1d96b96d1f",
+              "leftValue": "={{ $('set_inicial').item.json.hasMedia }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1248, 336],
+      "id": "5801f905-272d-4f2c-ad91-84f1d257d4dc",
+      "name": "hasMedia"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mimetype }}",
+                    "rightValue": "audio/ogg; codecs=opus",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "89c42f98-ad2a-4ed9-bd07-3be925e66c70"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Áudio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "74c4d67b-ec74-4e8f-9461-c676afde347b",
+                    "leftValue": "={{ $json.mimetype }}",
+                    "rightValue": "image/jpeg",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Imagem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a9a10d75-7de9-4c8c-aa02-64995c286771",
+                    "leftValue": "={{ $json.mimetype }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "documento"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [2624, 320],
+      "id": "a8237c6b-a4bf-4909-88c6-327f4d8e11c2",
+      "name": "Tipo de mídia"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [3136, 48],
+      "id": "3d2a7925-689e-47b4-afdc-9a072313ae11",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "fs4lBY8R5DtfQsUC",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "11af006e-3a36-49a5-85aa-71b54061d616",
+              "name": "message",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [3488, 48],
+      "id": "92ef60f0-f4b5-4a06-aa01-8ad27760e1a5",
+      "name": "audioMessage"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url.replace('http://localhost:3000', 'https://wahadoncabelone.doncabellone.com.br') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wahaApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2848, 48],
+      "id": "1362d6d2-61e2-4583-b3a1-1e708f1a6632",
+      "name": "baixar_audio",
+      "credentials": {
+        "wahaApi": {
+          "id": "XsBuiYyqQFe6x4dn",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url.replace('localhost:3000', 'wahadoncabelone.ltech.app.br')  }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wahaApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2848, 240],
+      "id": "15777ea0-8765-4fa7-8aa7-eb88cdeced65",
+      "name": "baixar_imagem",
+      "credentials": {
+        "wahaApi": {
+          "id": "XsBuiYyqQFe6x4dn",
+          "name": "WAHA account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "text": "Descreva o conteúdo da imagem de forma detalhada. Se o usuário enviar uma imagem de um objeto, identifique o objeto e suas características como: cor, tamanho, material, nome de campos",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [3136, 240],
+      "id": "9497f1cf-bbd3-479e-b8af-d6dd3a6a62b0",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "fs4lBY8R5DtfQsUC",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "text": "Analise o documento PDF enviado e extraia as informações de forma estruturada e detalhada.\n\n1. Identifique o tipo de documento (ex: nota fiscal, contrato, comprovante, formulário, etc).\n\n2. Liste todos os campos encontrados no documento, como:\n- Nome do campo\n- Valor do campo\n- Página onde aparece (se possível)\n\n3. Caso seja um documento financeiro ou comercial, extraia também:\n- Datas\n- Valores monetários\n- CPF/CNPJ\n- Nome de pessoas ou empresas\n- Endereços\n\n4. Se houver tabelas, extraia os dados em formato estruturado (JSON ou lista organizada).\n\n5. Caso o documento tenha múltiplas seções, organize a resposta por seções.\n\n6. Se alguma informação estiver ilegível ou ausente, indique como \"não identificado\".",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [3136, 432],
+      "id": "5e30a71d-c335-4a40-847d-0cc67136eb32",
+      "name": "Analyze document",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "fs4lBY8R5DtfQsUC",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "11af006e-3a36-49a5-85aa-71b54061d616",
+              "name": "message",
+              "value": "=O usuário enviou uma imagem. Informe que voce nao tem capacidade de leitura de imagem",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [3488, 240],
+      "id": "b1ebd1d0-ad01-43cc-b780-5cc22a31ec3e",
+      "name": "imageMessage"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "11af006e-3a36-49a5-85aa-71b54061d616",
+              "name": "message",
+              "value": "=O usuário enviou um documento. Informe que voce nao tem capacidade de leitura de documento",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [3488, 432],
+      "id": "7a44c7ad-27d0-4d35-94e0-59019486d14a",
+      "name": "documentMessage"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url.replace('localhost:3000', 'wahadoncabelone.ltech.app.br')  }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wahaApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2848, 432],
+      "id": "baf4cf9d-0d1c-42ac-a774-8e725f1a35f2",
+      "name": "baixar_documento",
+      "credentials": {
+        "wahaApi": {
+          "id": "XsBuiYyqQFe6x4dn",
+          "name": "WAHA account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [3776, 416],
+      "id": "cbec0f16-64d5-457e-a3f2-cbbe1f94d312",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT content\nFROM public.agent_prompt_versions\nORDER BY created_at DESC\nLIMIT 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [4000, 448],
+      "id": "6f1d2c8a-3b7e-4c5a-9e21-8d4b0a7f6c13",
+      "name": "buscar_prompt",
+      "notesInFlow": true,
+      "credentials": {
+        "postgres": {
+          "id": "uEJcXBMdzMROjoRJ",
+          "name": "filabarbearia - conta wagner producao"
+        }
+      },
+      "notes": "Prompt do agente editado no admin (Configurações > Assistente Virtual). Usa a versão mais recente."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "11af006e-3a36-49a5-85aa-71b54061d616",
+              "name": "message",
+              "value": "={{ $('Message Debounce').item.json.fullMessage }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [3488, 1168],
+      "id": "31c4f4bd-61e2-41f8-b38d-f15c68f94008",
+      "name": "mensagemComum"
+    },
+    {
+      "parameters": {
+        "sessionId": "={{ $('set_inicial').item.json.from }}",
+        "message": "={{ $('set_inicial').item.json.mensagemLead }}",
+        "options": {
+          "onDuplicateMessage": "ignore"
+        }
+      },
+      "type": "n8n-nodes-message-debounce.messageDebounce",
+      "typeVersion": 1,
+      "position": [2336, 880],
+      "id": "a3413756-4f93-413b-b57d-453bfe3e3cb7",
+      "name": "Message Debounce",
+      "credentials": {
+        "redisApi": {
+          "id": "R0pZGTxhkuG2ihSV",
+          "name": "redis-debounce"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f1c2f4c3-6e1a-4f54-bb70-a047e1e4506d",
+              "leftValue": "={{ $json.isBlocked }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [3136, 1024],
+      "id": "02c814c0-734c-4aa5-9549-49e9f95c665e",
+      "name": "isBlocked?"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $('set_inicial').item.json.session }}_{{ $('set_inicial').item.json.to }}_block",
+        "value": "true",
+        "expire": true,
+        "ttl": 600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [2848, 736],
+      "id": "94930a2e-26fe-40d3-b130-0daf016ac805",
+      "name": "criar chave block",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "isBlocked",
+        "key": "={{ $('set_inicial').item.json.session }}_{{ $('set_inicial').item.json.from }}_block",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [2848, 1024],
+      "id": "03bf8c12-cd92-41f5-94ad-5a7e309746de",
+      "name": "buscar chave block",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "user",
+              "message": "={{ $('set_inicial').item.json.mensagemLead }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [3424, 768],
+      "id": "06934c9d-3ea6-4395-a4da-18f68d13a7cb",
+      "name": "inserirMensagemAtendente"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('set_inicial').item.json.from }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [3504, 992],
+      "id": "9cd5cbc2-285e-4530-8c7b-b9fcd63abc0a",
+      "name": "Redis Chat Memory1",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('set_inicial').item.json.to }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [3152, 848],
+      "id": "8c91ce86-7c84-498f-acfe-e2090137ae46",
+      "name": "Redis Chat Memory2",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "ai",
+              "message": "={{ $('set_inicial').item.json.mensagemLead }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [3072, 624],
+      "id": "42d27154-7323-4622-8273-dfabd72031b5",
+      "name": "inserirMensagemAtendenteHumano"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f61ef766-5ce1-4bfd-8ee3-e2e9a6e5a8cc",
+              "leftValue": "={{ $('set_inicial').item.json.isFromMe }}",
+              "rightValue": "274977395843092@lid",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [2624, 880],
+      "id": "8f5d9194-2642-40fc-b941-31930685778f",
+      "name": "intervencaoHumana?1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00f79f08-f8ac-49e4-a06c-1efc4be2e865",
+              "name": "event",
+              "value": "={{ $json.body.event }}",
+              "type": "string"
+            },
+            {
+              "id": "10476eda-4cb9-4444-9883-bebbe989a70c",
+              "name": "session",
+              "value": "={{ $json.body.session }}",
+              "type": "string"
+            },
+            {
+              "id": "c3716cfa-bc11-412a-940d-1e3597bde1f1",
+              "name": "message_id",
+              "value": "={{ $json.body.payload.id }}",
+              "type": "string"
+            },
+            {
+              "id": "8803d8a1-e0ae-480f-9293-41366f877e88",
+              "name": "from",
+              "value": "={{ $json.body.payload.from }}",
+              "type": "string"
+            },
+            {
+              "id": "4d247697-c349-4f77-bb0a-2776e6cafebd",
+              "name": "nomeLead",
+              "value": "={{ $json.body.payload._data.notifyName }}",
+              "type": "string"
+            },
+            {
+              "id": "935422ef-7587-4eb8-869a-40764acaef4a",
+              "name": "isFromMe",
+              "value": "={{ $json.body.payload.fromMe }}",
+              "type": "boolean"
+            },
+            {
+              "id": "4ec04d4b-6113-4638-9986-d0fec92ba289",
+              "name": "source",
+              "value": "={{ $json.body.payload.source }}",
+              "type": "string"
+            },
+            {
+              "id": "c30f275b-be7b-4bc4-aa29-4e8140a29490",
+              "name": "hasMedia",
+              "value": "={{ $json.body.payload.hasMedia }}",
+              "type": "boolean"
+            },
+            {
+              "id": "a284ed46-b682-4945-8f6e-9873055be621",
+              "name": "tipo_payload",
+              "value": "={{ $json.body.payload._data.type }}",
+              "type": "string"
+            },
+            {
+              "id": "7e5a7c3c-4756-47f3-b89f-177abf870fe1",
+              "name": "mensagemLead",
+              "value": "={{ $json.body.payload.body }}",
+              "type": "string"
+            },
+            {
+              "id": "a9b20a3e-7e89-41c5-bb82-f7bee72ddd2a",
+              "name": "mediaUrl",
+              "value": "={{ $json.body.payload.media.url }}",
+              "type": "string"
+            },
+            {
+              "id": "15b91c51-e052-47a3-8489-b51d9bd1b2cb",
+              "name": "mediaMimetype",
+              "value": "={{ $json.body.payload.media.mimetype }}",
+              "type": "string"
+            },
+            {
+              "id": "2210e27d-ca48-44e3-bc40-ba9cc5855b56",
+              "name": "telefoneAgenteId",
+              "value": "={{ $json.body.me.lid }}",
+              "type": "string"
+            },
+            {
+              "id": "d91abfcf-2cc8-4ce3-a322-41fa0fe2f6d3",
+              "name": "telefoneAgente",
+              "value": "={{ $json.body.me.id }}",
+              "type": "string"
+            },
+            {
+              "id": "3e07e575-b68d-4e81-b9cd-9cdb70d2e8bc",
+              "name": "to",
+              "value": "={{ $json.body.payload.to }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [800, 336],
+      "id": "d209c042-1518-47f6-93c0-67609f54c917",
+      "name": "set_inicial"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "320af105-eca7-4a62-a3b8-a379cc105115",
+              "name": "url",
+              "value": "={{ $('set_inicial').first().json.mediaUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "dce3f114-b57d-4925-ab9e-c450cc3be2a5",
+              "name": "mimetype",
+              "value": "={{ $('set_inicial').first().json.mediaMimetype }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2336, 336],
+      "id": "eff98946-a7a4-4bf0-af23-21806d42bef5",
+      "name": "set_media"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d3cef868-c726-41f7-ad62-252031c009bf",
+              "leftValue": "={{ $('set_inicial').item.json.source }}",
+              "rightValue": "=app",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1024, 336],
+      "id": "a26475ae-dd18-4811-88df-49673bf105a0",
+      "name": "mensagem_gerada_usuario",
+      "notes": "Evita acionamento do fluxo quando um evento for source = api . Que é quando o agente envia a resposta pro usuário."
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Text",
+        "session": "={{ $('set_inicial').item.json.session }}",
+        "chatId": "={{ $('set_inicial').item.json.from }}",
+        "text": "={{ $json.output }}",
+        "linkPreview": false,
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [4800, 448],
+      "id": "7d84f220-28e7-4365-bb4e-65975c78f450",
+      "name": "Send a text message",
+      "credentials": {
+        "wahaApi": {
+          "id": "XsBuiYyqQFe6x4dn",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Presence",
+        "operation": "Set Presence",
+        "session": "={{ $('set_inicial').item.json.session }}",
+        "chatId": "={{ $('set_inicial').item.json.from }}",
+        "presence": "typing",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [4224, 448],
+      "id": "12f0644f-68f9-45ce-817c-090357ea1574",
+      "name": "Set session presence",
+      "credentials": {
+        "wahaApi": {
+          "id": "XsBuiYyqQFe6x4dn",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "4a7984d1-e804-4d1f-afc8-761063f5192f",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [576, 336],
+      "id": "1aa71afd-f7c5-4d09-a085-6170f2122a16",
+      "name": "Webhook",
+      "webhookId": "4a7984d1-e804-4d1f-afc8-761063f5192f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "434eadb5-030d-42e7-b39a-a7c8bc0cbbd6",
+              "leftValue": "={{ $('set_inicial').item.json.isFromMe }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1472, -48],
+      "id": "56de792b-831e-4879-aa29-7a19365b22a4",
+      "name": "fromMe?"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $('set_inicial').item.json.session }}_{{ $('set_inicial').item.json.to }}_block",
+        "value": "true",
+        "expire": true,
+        "ttl": 600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1696, -144],
+      "id": "0b0371cd-b62e-4378-bdfb-661e6ecfb868",
+      "name": "criar chave block1",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('set_inicial').item.json.to }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [2000, -32],
+      "id": "54ef0b3d-60ae-4ac9-8cc8-9421385e14b5",
+      "name": "Redis Chat Memory3",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "ai",
+              "message": "={{ $('set_inicial').item.json.mensagemLead }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [1920, -256],
+      "id": "51f252b0-4c18-4bb9-88e1-51c5ec9443d8",
+      "name": "inserirMensagemAtendenteHumano1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f1c2f4c3-6e1a-4f54-bb70-a047e1e4506d",
+              "leftValue": "={{ $json.isBlocked }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1984, 144],
+      "id": "8f44b913-1463-4443-9c4f-fa3070e0aa69",
+      "name": "isBlocked?1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "isBlocked",
+        "key": "={{ $('set_inicial').item.json.session }}_{{ $('set_inicial').item.json.from }}_block",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1696, 144],
+      "id": "defe532c-4a2f-4fe9-9942-6d3aea6d0671",
+      "name": "buscar chave block1",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "user",
+              "message": "={{ $('set_inicial').item.json.mensagemLead }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [2272, -64],
+      "id": "fb1aa2fa-bb5a-423d-883d-71767e36d041",
+      "name": "inserirMensagemAtendente1"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('set_inicial').item.json.from }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [2352, 160],
+      "id": "add17b50-7c28-4b91-994a-a96f0447e83f",
+      "name": "Redis Chat Memory4",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Merge').item.json.message }}",
+        "options": {
+          "systemMessage": "={{ $('buscar_prompt').item.json.content.replaceAll('[DATA_HORA_ATUAL]', $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat(\"cccc, dd/MM/yyyy 'às' HH:mm\")) }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [4448, 448],
+      "id": "a995ac6c-8f09-4950-8bf0-1872e076ad9c",
+      "name": "Atendente Barbearia"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('set_inicial').item.json.from }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [4528, 688],
+      "id": "5c0dfcf7-cfc1-4aac-8a13-4f7e24c262f7",
+      "name": "memoria",
+      "credentials": {
+        "redis": {
+          "id": "0pbMHUettCWsu50k",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.6-luna",
+          "mode": "list",
+          "cachedResultName": "gpt-5.6-luna"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [4368, 688],
+      "id": "f0f04f29-5279-48da-8f08-d8855660d760",
+      "name": "5.6 - luna",
+      "credentials": {
+        "openAiApi": {
+          "id": "6DEX4pVwwAV3z4GT",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "pt"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [3136, -128],
+      "id": "859eb09c-0daf-4a73-b65f-0c07fef69800",
+      "name": "Transcribe a recording1",
+      "credentials": {
+        "openAiApi": {
+          "id": "6DEX4pVwwAV3z4GT",
+          "name": "OpenAI account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "hasMedia": {
+      "main": [
+        [
+          {
+            "node": "fromMe?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message Debounce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de mídia": {
+      "main": [
+        [
+          {
+            "node": "baixar_audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "baixar_imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "baixar_documento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [[]]
+    },
+    "audioMessage": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "baixar_audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "baixar_imagem": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "imageMessage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze document": {
+      "main": [
+        [
+          {
+            "node": "documentMessage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "imageMessage": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "documentMessage": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "baixar_documento": {
+      "main": [
+        [
+          {
+            "node": "Analyze document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "buscar_prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_prompt": {
+      "main": [
+        [
+          {
+            "node": "Set session presence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mensagemComum": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Message Debounce": {
+      "main": [
+        [
+          {
+            "node": "intervencaoHumana?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "isBlocked?": {
+      "main": [
+        [
+          {
+            "node": "inserirMensagemAtendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mensagemComum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "criar chave block": {
+      "main": [
+        [
+          {
+            "node": "inserirMensagemAtendenteHumano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar chave block": {
+      "main": [
+        [
+          {
+            "node": "isBlocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "inserirMensagemAtendente",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory2": {
+      "ai_memory": [
+        [
+          {
+            "node": "inserirMensagemAtendenteHumano",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "intervencaoHumana?1": {
+      "main": [
+        [
+          {
+            "node": "criar chave block",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "buscar chave block",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set_inicial": {
+      "main": [
+        [
+          {
+            "node": "mensagem_gerada_usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set_media": {
+      "main": [
+        [
+          {
+            "node": "Tipo de mídia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mensagem_gerada_usuario": {
+      "main": [
+        [
+          {
+            "node": "hasMedia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set session presence": {
+      "main": [
+        [
+          {
+            "node": "Atendente Barbearia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "set_inicial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fromMe?": {
+      "main": [
+        [
+          {
+            "node": "criar chave block1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "buscar chave block1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "criar chave block1": {
+      "main": [
+        [
+          {
+            "node": "inserirMensagemAtendenteHumano1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory3": {
+      "ai_memory": [
+        [
+          {
+            "node": "inserirMensagemAtendenteHumano1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "isBlocked?1": {
+      "main": [
+        [
+          {
+            "node": "inserirMensagemAtendente1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "set_media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar chave block1": {
+      "main": [
+        [
+          {
+            "node": "isBlocked?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory4": {
+      "ai_memory": [
+        [
+          {
+            "node": "inserirMensagemAtendente1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atendente Barbearia": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "memoria": {
+      "ai_memory": [
+        [
+          {
+            "node": "Atendente Barbearia",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5.6 - luna": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Atendente Barbearia",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording1": {
+      "main": [
+        [
+          {
+            "node": "audioMessage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n.doncabellone.com.br",
+          "user-agent": "WAHA/2026.10.1",
+          "content-length": "5388",
+          "accept": "application/json, text/plain, */*",
+          "accept-encoding": "gzip, compress, deflate, br",
+          "content-type": "application/json",
+          "x-forwarded-for": "172.17.0.1",
+          "x-forwarded-host": "n8n.doncabellone.com.br",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "4434e6ddee78",
+          "x-real-ip": "172.17.0.1",
+          "x-webhook-request-id": "d0jxf1dmwcx9pue",
+          "x-webhook-timestamp": "1794450119701"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "id": "evt_01m76rzq0n0m2m4evdhz44nd31",
+          "timestamp": 1794450119701,
+          "event": "message",
+          "session": "default",
+          "metadata": {},
+          "me": {
+            "id": "5521999062880@c.us",
+            "lid": "88863007580230@lid",
+            "pushName": "Don Cabellone - Aberto de Terça a Sábado",
+            "reachoutTimelock": null,
+            "messageCapping": {
+              "cappingStatus": "NONE",
+              "totalQuota": -1,
+              "usedQuota": 0,
+              "cycleStart": 1793502000,
+              "cycleEnd": 1796093999,
+              "mvStatus": "NOT_ELIGIBLE",
+              "oteStatus": "NOT_ELIGIBLE"
+            }
+          },
+          "payload": {
+            "id": "false_164793616969835@lid_3A3BF384A3AD868727A1",
+            "timestamp": 1794450119,
+            "from": "164793616969835@lid",
+            "fromMe": false,
+            "source": "app",
+            "to": "5521999062880@c.us",
+            "body": "",
+            "hasMedia": true,
+            "media": {
+              "url": "http://localhost:3000/api/files/default/false_164793616969835@lid_3A3BF384A3AD868727A1.oga",
+              "filename": null,
+              "mimetype": "audio/ogg; codecs=opus"
+            },
+            "ack": 1,
+            "ackName": "SERVER",
+            "location": null,
+            "vCards": [],
+            "_data": {
+              "id": {
+                "fromMe": false,
+                "remote": "164793616969835@lid",
+                "id": "3A3BF384A3AD868727A1",
+                "$1": "false_164793616969835@lid_3A3BF384A3AD868727A1",
+                "_serialized": "false_164793616969835@lid_3A3BF384A3AD868727A1"
+              },
+              "viewed": false,
+              "type": "ptt",
+              "t": 1794450119,
+              "clientReceivedTsMillis": 1794450118111,
+              "serverStoreTimeMicros": 1794450119030007,
+              "notifyName": "Andrade Lucas",
+              "from": "164793616969835@lid",
+              "to": "5521999062880@c.us",
+              "ack": 1,
+              "invis": false,
+              "isNewMsg": true,
+              "star": false,
+              "kicNotified": false,
+              "recvFresh": true,
+              "deprecatedMms3Url": "https://mmg.whatsapp.net/v/t62.7117-24/903311476_1662171172041240_358535942651081180_n.enc?ccb=11-4&oh=01_Q5Aa6AEc9voa4LYjPb7u4EKBiBrZYvXEvFCh3-CtJurST7rGEA&oe=6B1C9F04&_nc_sid=5e03e0&mms3=true",
+              "directPath": "/v/t62.7117-24/903311476_1662171172041240_358535942651081180_n.enc?ccb=11-4&oh=01_Q5Aa6AEc9voa4LYjPb7u4EKBiBrZYvXEvFCh3-CtJurST7rGEA&oe=6B1C9F04&_nc_sid=5e03e0",
+              "mimetype": "audio/ogg; codecs=opus",
+              "duration": "1",
+              "filehash": "aS7HiweM7WRrY+vW6OSeCKEAzgy0yVMhw+/H0y991Wo=",
+              "encFilehash": "VvnHA6Y3YLdQOOq5CARAPJuamHqmc0WXze230347Zqg=",
+              "size": 3700,
+              "streamingSidecar": {},
+              "mediaKey": "fQHMd1jlpvBBR2i0ROYk/k/3L7sIjjur3nyhNWRqS98=",
+              "mediaKeyTimestamp": 1794450116,
+              "isViewOnce": false,
+              "waveform": {
+                "0": 0,
+                "1": 1,
+                "2": 2,
+                "3": 3,
+                "4": 4,
+                "5": 5,
+                "6": 6,
+                "7": 8,
+                "8": 11,
+                "9": 15,
+                "10": 19,
+                "11": 22,
+                "12": 26,
+                "13": 30,
+                "14": 34,
+                "15": 34,
+                "16": 35,
+                "17": 35,
+                "18": 36,
+                "19": 36,
+                "20": 37,
+                "21": 38,
+                "22": 44,
+                "23": 50,
+                "24": 56,
+                "25": 62,
+                "26": 68,
+                "27": 74,
+                "28": 81,
+                "29": 81,
+                "30": 82,
+                "31": 83,
+                "32": 83,
+                "33": 84,
+                "34": 85,
+                "35": 86,
+                "36": 85,
+                "37": 85,
+                "38": 85,
+                "39": 85,
+                "40": 85,
+                "41": 85,
+                "42": 85,
+                "43": 80,
+                "44": 76,
+                "45": 71,
+                "46": 67,
+                "47": 62,
+                "48": 57,
+                "49": 54,
+                "50": 56,
+                "51": 62,
+                "52": 65,
+                "53": 70,
+                "54": 73,
+                "55": 77,
+                "56": 82,
+                "57": 76,
+                "58": 70,
+                "59": 64,
+                "60": 59,
+                "61": 53,
+                "62": 47,
+                "63": 42
+              },
+              "isFromTemplate": false,
+              "isAdsMedia": false,
+              "pollInvalidated": false,
+              "isSentCagPollCreation": false,
+              "latestEditMsgKey": null,
+              "latestEditSenderTimestampMs": null,
+              "mentionedJidList": [],
+              "groupMentions": [],
+              "isEventCanceled": false,
+              "eventInvalidated": false,
+              "isVcardOverMmsDocument": false,
+              "isForwarded": false,
+              "isQuestion": false,
+              "isSpoiler": false,
+              "questionReplyQuotedMessage": null,
+              "questionResponsesCount": 0,
+              "readQuestionResponsesCount": 0,
+              "forwardsCount": 0,
+              "hasReaction": false,
+              "newsletterAdminProfile": null,
+              "expiredTimestamp": null,
+              "viewMode": "VISIBLE",
+              "messageSecret": {
+                "0": 124,
+                "1": 208,
+                "2": 115,
+                "3": 224,
+                "4": 228,
+                "5": 159,
+                "6": 108,
+                "7": 13,
+                "8": 242,
+                "9": 237,
+                "10": 148,
+                "11": 153,
+                "12": 173,
+                "13": 134,
+                "14": 105,
+                "15": 17,
+                "16": 174,
+                "17": 167,
+                "18": 253,
+                "19": 25,
+                "20": 198,
+                "21": 201,
+                "22": 181,
+                "23": 149,
+                "24": 225,
+                "25": 86,
+                "26": 69,
+                "27": 25,
+                "28": 104,
+                "29": 73,
+                "30": 86,
+                "31": 62
+              },
+              "productHeaderImageRejected": false,
+              "lastPlaybackProgress": 0,
+              "isDynamicReplyButtonsMsg": false,
+              "isCarouselCard": false,
+              "parentMsgId": null,
+              "callSilenceReason": null,
+              "isVideoCall": false,
+              "callDuration": null,
+              "callCreator": null,
+              "callParticipants": null,
+              "isCallLink": null,
+              "callLinkToken": null,
+              "terminatedByDeviceSwitch": null,
+              "screenedElsewhere": null,
+              "selfOtherDeviceConnected": null,
+              "isVoiceChat": null,
+              "bytesSent": null,
+              "bytesReceived": null,
+              "isMdHistoryMsg": false,
+              "stickerSentTs": 0,
+              "isAvatar": false,
+              "lastUpdateFromServerTs": 0,
+              "invokedBotWid": null,
+              "metaFrom": null,
+              "bizBotType": null,
+              "botDeepLinkToken": null,
+              "aiMediaCollectionInfo": null,
+              "expectedImageCount": null,
+              "expectedVideoCount": null,
+              "botResponseTargetId": null,
+              "botResponseId": null,
+              "botPluginType": null,
+              "botPluginReferenceIndex": null,
+              "botPluginSearchProvider": null,
+              "botPluginSearchUrl": null,
+              "botPluginSearchQuery": null,
+              "botPluginMaybeParent": false,
+              "botReelPluginThumbnailCdnUrl": null,
+              "botMessageDisclaimerText": null,
+              "botSessionTransparencyType": null,
+              "botMsgBodyType": null,
+              "botModeSelection": null,
+              "botModeOverride": null,
+              "reportingTokenInfo": {
+                "stanzaTs": 1794450119,
+                "reportingToken": {
+                  "0": 84,
+                  "1": 69,
+                  "2": 142,
+                  "3": 220,
+                  "4": 168,
+                  "5": 228,
+                  "6": 245,
+                  "7": 232,
+                  "8": 103,
+                  "9": 196,
+                  "10": 138,
+                  "11": 40,
+                  "12": 49,
+                  "13": 239,
+                  "14": 75,
+                  "15": 104
+                },
+                "version": 2,
+                "reportingTag": {
+                  "0": 1,
+                  "1": 25,
+                  "2": 92,
+                  "3": 111,
+                  "4": 205,
+                  "5": 114,
+                  "6": 152,
+                  "7": 68,
+                  "8": 97,
+                  "9": 152,
+                  "10": 33,
+                  "11": 121,
+                  "12": 7,
+                  "13": 89,
+                  "14": 96,
+                  "15": 57,
+                  "16": 127,
+                  "17": 48,
+                  "18": 216,
+                  "19": 226
+                }
+              },
+              "hatchMetadataSync": null,
+              "requiresDirectConnection": null,
+              "bizContentPlaceholderType": null,
+              "hostedBizEncStateMismatch": false,
+              "senderOrRecipientAccountTypeHosted": false,
+              "placeholderCreatedWhenAccountIsHosted": false,
+              "groupHistoryBundleMessageKey": null,
+              "groupHistoryBundleMetadata": null,
+              "groupHistoryIndividualMessageInfo": null,
+              "groupHistoryLastCountedMessageTimestamp": null,
+              "nonJidMentions": null,
+              "links": []
+            }
+          },
+          "engine": "WEBJS",
+          "environment": {
+            "version": "2026.10.1",
+            "engine": "WEBJS",
+            "tier": "CORE",
+            "browser": "/usr/bin/google-chrome",
+            "platform": "linux/x64",
+            "worker": {
+              "id": null
+            }
+          }
+        },
+        "webhookUrl": "https://n8n.doncabellone.com.br/webhook/4a7984d1-e804-4d1f-afc8-761063f5192f",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6cebef8bff6a1ab92c2d73a5c9f01207e29f2da4330073c7fae6330312691bc6"
+  }
+}

@@ -15,6 +15,7 @@ import {
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import AgentPromptSettings from "../components/AgentPromptSettings";
 import { WEEKDAYS } from "../constants/constants";
 import {
   BarberService,
@@ -1042,6 +1043,8 @@ export default function AdminSettings() {
             )}
           </div>
         </section>
+
+        <AgentPromptSettings />
       </main>
     </div>
   );
