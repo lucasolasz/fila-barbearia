@@ -29,6 +29,12 @@ import {
   summarizeRecipients,
 } from "../lib/campaignProgress";
 import CampaignIssues from "../components/admin/CampaignIssues";
+import { greetingName } from "../lib/campaignMessage";
+
+/** Nome do cliente entra no HTML da pré-visualização: escapa para não virar tag. */
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 const STATUS_VIEW: Record<CampaignDisplayStatus, { label: string; color: string }> = {
   sending: { label: "Enviando...", color: "text-amber-400" },
@@ -433,7 +439,7 @@ export default function AdminCampaigns() {
           selectedContacts.map((c) => ({
             campaign_id: campaignRow.id,
             customer_id: c.id,
-            nome: c.name.trim().split(" ")[0],
+            nome: greetingName(c.name),
             numero: c.phone,
             status: "pending",
           })),
@@ -940,9 +946,11 @@ export default function AdminCampaigns() {
                     <div
                       className="text-sm leading-relaxed"
                       dangerouslySetInnerHTML={{
-                        __html:
-                          formatPreviewMessage(messageText) ||
-                          "<span class='text-[#8696a0]'>Sua mensagem aparecerá aqui...</span>",
+                        __html: messageText.trim()
+                          ? // Mesma saudação que o n8n coloca no envio (ver src/lib/campaignMessage.ts).
+                            `Olá ${escapeHtml(greetingName(selectedContacts[0]?.name ?? "") || "Cliente")},<br><br>` +
+                            formatPreviewMessage(messageText)
+                          : "<span class='text-[#8696a0]'>Sua mensagem aparecerá aqui...</span>",
                       }}
                     />
                   </div>

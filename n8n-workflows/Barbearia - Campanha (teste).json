@@ -8,11 +8,8 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [
-        -480,
-        160
-      ],
-      "id": "41d158a9-2e61-4d95-acc5-eff0a531eae3",
+      "position": [-848, -128],
+      "id": "bc8b892d-ee96-4bcd-97f9-92d35e5fc8de",
       "name": "Sticky Note"
     },
     {
@@ -25,11 +22,8 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [
-        0,
-        272
-      ],
-      "id": "8d84a256-0fd9-4e5b-a63c-f2add064ca75",
+      "position": [-368, -16],
+      "id": "048c5b3f-67bb-4a52-b509-da4b9725bfa6",
       "name": "Webhook",
       "webhookId": "4627efd9-77f7-4d15-9e8f-433670d66507"
     },
@@ -49,11 +43,8 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        224,
-        272
-      ],
-      "id": "091a2ea9-8201-4625-b2ff-f7c0d1b5e742",
+      "position": [-144, -16],
+      "id": "43d457df-aff1-4439-be20-4502f33fd059",
       "name": "Extrair Dados"
     },
     {
@@ -71,16 +62,13 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        448,
-        272
-      ],
-      "id": "b90e2ec5-4f1e-48ec-b680-25e4a59d4822",
+      "position": [80, -16],
+      "id": "ad26536e-933d-497e-82e9-5a02ca20cd6a",
       "name": "Buscar Campanha",
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
       }
     },
@@ -100,11 +88,8 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        672,
-        272
-      ],
-      "id": "d67a797e-ca3d-4a61-ae9c-421a90229652",
+      "position": [304, -16],
+      "id": "eb0505f9-2c83-4f22-87a5-706660ac7704",
       "name": "Formatar Mensagem WhatsApp"
     },
     {
@@ -129,20 +114,17 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        896,
-        272
-      ],
-      "id": "6eefad81-3359-4769-89e0-6ece2dad91c7",
+      "position": [528, -16],
+      "id": "3f0e8d52-8356-4db2-90d5-6b97fb51ad81",
       "name": "Buscar Destinatários Pendentes",
       "alwaysOutputData": true,
-      "notes": "alwaysOutputData: sem pendentes, sai um item vazio para o IF 'Tem pendentes?' marcar a campanha como concluída (senão ela ficaria 'sending' para sempre).",
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
-      }
+      },
+      "notes": "alwaysOutputData: sem pendentes, sai um item vazio para o IF 'Tem pendentes?' marcar a campanha como concluída (senão ela ficaria 'sending' para sempre)."
     },
     {
       "parameters": {
@@ -171,11 +153,8 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [
-        1008,
-        448
-      ],
-      "id": "4d49a4fe-3cc4-4e19-885c-2312bc184f68",
+      "position": [640, 160],
+      "id": "8fc667f7-2e17-4ca9-8278-c1159e574e86",
       "name": "Tem pendentes?"
     },
     {
@@ -184,11 +163,8 @@
       },
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [
-        1120,
-        272
-      ],
-      "id": "aa46050c-50df-4439-b7c3-d049d6caad21",
+      "position": [752, -16],
+      "id": "ac9b82ec-2986-47a1-9e9d-bd57aa9d8073",
       "name": "Loop Over Items"
     },
     {
@@ -218,11 +194,8 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [
-        2048,
-        272
-      ],
-      "id": "f0ba9bd2-ff6c-438c-94c0-8fd6b29293de",
+      "position": [1680, -16],
+      "id": "517f5878-e1c6-47c2-993d-75a96c1e94af",
       "name": "Número existe?"
     },
     {
@@ -231,11 +204,8 @@
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [
-        2784,
-        256
-      ],
-      "id": "58d8079a-f435-4145-a961-bb8f9e4e57b1",
+      "position": [2416, -32],
+      "id": "b8ab8868-cc12-415c-bf68-e43acc488088",
       "name": "Wait",
       "webhookId": "4e918840-bbe3-4ffa-91af-646a29da9126",
       "notes": "TESTE: 2-5 s por contato (no real: 6-17 s + pausas longas). Simula o tempo de envio."
@@ -268,19 +238,16 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        3232,
-        240
-      ],
-      "id": "2b8ce95c-bf45-4087-a062-21b79692d1bb",
+      "position": [2864, -48],
+      "id": "0b76b601-2f30-475b-a999-be57b9c01381",
       "name": "Marcar Enviado",
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
       }
     },
@@ -312,19 +279,16 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        3008,
-        576
-      ],
-      "id": "c70f578e-3ddf-4ba9-bb4a-75fba05797b7",
+      "position": [2640, 288],
+      "id": "c88299f8-6c0d-4a21-8fdc-a2cc78f82c7e",
       "name": "Marcar Erro",
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
       }
     },
@@ -352,19 +316,16 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        2048,
-        464
-      ],
-      "id": "785314d1-5d8b-4ee3-b275-0c949f5f2bdb",
+      "position": [1680, 176],
+      "id": "6213ff8e-fdc4-40ff-aad9-59fabb7fef89",
       "name": "Marcar Inválido",
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
       }
     },
@@ -392,23 +353,20 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        1696,
-        0
-      ],
-      "id": "6580b5c4-a8d4-48e7-b98c-0e63c5534788",
+      "position": [1328, -288],
+      "id": "9bb3ae3a-4327-4edf-99f9-38ecbc63e42b",
       "name": "Marcar Campanha Concluída",
       "executeOnce": true,
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "notes": "executeOnce: o 'done' do loop entrega todos os itens; basta um update.",
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
-      }
+      },
+      "notes": "executeOnce: o 'done' do loop entrega todos os itens; basta um update."
     },
     {
       "parameters": {
@@ -431,24 +389,21 @@
       },
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [
-        1472,
-        0
-      ],
-      "id": "647f52e5-ae55-4dd4-9adc-05fd2e870778",
+      "position": [1104, -288],
+      "id": "b0db530b-7faf-4ff6-a6c8-42a683d8ab60",
       "name": "Limpar Enviados",
       "executeOnce": true,
       "alwaysOutputData": true,
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "notes": "campaign_recipients guarda só pendências: quem recebeu sai da tabela. Sobram error/invalid_number para o barbeiro resolver na tela. alwaysOutputData: segue para 'Marcar Campanha Concluída' mesmo sem nada para apagar.",
       "credentials": {
         "supabaseApi": {
-          "id": "pIVLLDv2LCj2MjP1",
-          "name": "Supabase account"
+          "id": "V6na901C8KT7cSE9",
+          "name": "supabase-desenvolvimento"
         }
-      }
+      },
+      "notes": "campaign_recipients guarda só pendências: quem recebeu sai da tabela. Sobram error/invalid_number para o barbeiro resolver na tela. alwaysOutputData: segue para 'Marcar Campanha Concluída' mesmo sem nada para apagar."
     },
     {
       "parameters": {
@@ -484,11 +439,8 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        1472,
-        288
-      ],
-      "id": "3b4a6fa6-cf59-4f5c-b0d4-3d113039b302",
+      "position": [1104, 0],
+      "id": "4614141f-8e26-448b-8e1d-0256db4de7a7",
       "name": "Simular Verificação",
       "notes": "TESTE: substitui o 'Check Exists' do WAHA. Número terminado em 0000 = sem WhatsApp (invalid_number). Terminado em 9999 = erro de envio (error). Qualquer outro = enviado (sent)."
     },
@@ -519,11 +471,8 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [
-        1760,
-        288
-      ],
-      "id": "0383e8c6-2253-4883-81fc-0d9b2b90056d",
+      "position": [1392, 0],
+      "id": "b4f3e368-934d-413a-9027-4f7decf914e5",
       "name": "Simular erro?"
     },
     {
@@ -540,7 +489,7 @@
               "id": "25f6f17f-b7df-4b08-ba6b-e24442ecf301",
               "name": "mensagem_simulada",
               "type": "string",
-              "value": "=Olá {{ $('Loop Over Items').item.json.nome }}, {{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}"
+              "value": "=Olá {{ $('Loop Over Items').item.json.nome }},\n\n{{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}"
             }
           ]
         },
@@ -548,11 +497,8 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        3008,
-        256
-      ],
-      "id": "206e5471-aae2-440c-a99a-b83c5abbaf76",
+      "position": [2640, -32],
+      "id": "7cbb90be-9996-411d-8f66-ff52056113dd",
       "name": "Simular Envio",
       "notes": "TESTE: não envia nada. Mostra na execução o texto que seria enviado."
     }
@@ -607,17 +553,6 @@
         [
           {
             "node": "Tem pendentes?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Limpar Enviados": {
-      "main": [
-        [
-          {
-            "node": "Marcar Campanha Concluída",
             "type": "main",
             "index": 0
           }
@@ -722,6 +657,17 @@
         ]
       ]
     },
+    "Limpar Enviados": {
+      "main": [
+        [
+          {
+            "node": "Marcar Campanha Concluída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Simular Verificação": {
       "main": [
         [
@@ -765,7 +711,6 @@
   },
   "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "6cebef8bff6a1ab92c2d73a5c9f01207e29f2da4330073c7fae6330312691bc6"
   }
 }

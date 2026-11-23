@@ -250,7 +250,7 @@
         "operation": "Send Text",
         "session": "=default",
         "chatId": "={{ $('Verificar Número').item.json.chatId }}",
-        "text": "=Olá {{ $('Loop Over Items').item.json.nome }}, {{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}",
+        "text": "=Olá {{ $('Loop Over Items').item.json.nome }},\n\n{{ $('Formatar Mensagem WhatsApp').item.json.mensagem_formatada }}",
         "linkPreview": false,
         "requestOptions": {}
       },

@@ -51,6 +51,7 @@ export default function AdminHeader({
   }, []);
 
   const navItems = [
+    { label: "Campanhas", icon: Megaphone, path: "/admin/campaigns" },
     { label: "Histórico", icon: History, path: "/admin/history" },
     { label: "Clientes", icon: Users, path: "/admin/clients" },
     { label: "Configurações", icon: Settings, path: "/admin/settings" },
@@ -112,7 +113,9 @@ export default function AdminHeader({
                 ? "bg-amber-900/30 text-amber-400"
                 : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
             }`}
-            title={isLunchPaused ? "Sair do Almoço" : "Ativar Pausa para Almoço"}
+            title={
+              isLunchPaused ? "Sair do Almoço" : "Ativar Pausa para Almoço"
+            }
           >
             <UtensilsCrossed className="h-4 w-4" />
             <span className="hidden sm:inline">
@@ -126,22 +129,15 @@ export default function AdminHeader({
                 ? "bg-blue-900/30 text-blue-400"
                 : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
             }`}
-            title={isPreOpening ? "Encerrar Pré-Abertura" : "Ativar Pré-Abertura"}
+            title={
+              isPreOpening ? "Encerrar Pré-Abertura" : "Ativar Pré-Abertura"
+            }
           >
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">
               {isPreOpening ? "Pré-Aberto" : "Pré-Abertura"}
             </span>
           </button>
-          <button
-            hidden
-            onClick={() => onNavigate("/admin/campaigns")}
-            className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 transition-colors"
-            title="Campanhas"
-          >
-            <Megaphone className="h-6 w-6" />
-          </button>
-
           {/* Desktop: ícones inline */}
           <div className="hidden sm:flex items-center space-x-2">
             {navItems.map(({ label, icon: Icon, path }) => (
