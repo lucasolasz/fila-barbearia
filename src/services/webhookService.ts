@@ -24,6 +24,13 @@ export interface CampaignWebhookPayload {
 /** Id que não existe no banco: o teste chega ao n8n, mas nenhuma mensagem é enviada. */
 const CAMPAIGN_TEST_ID = "00000000-0000-0000-0000-000000000000";
 
+/** Aceita URL salva sem protocolo (ex.: "n8n.site.com/webhook/x") e assume https. */
+function normalizeWebhookUrl(webhookUrl: string): string {
+  const url = webhookUrl.trim();
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return "https://" + url;
+}
+
 export interface WebhookPayload {
   type: "QUEUE_UPDATE";
   event: WebhookEvent;
@@ -71,13 +78,7 @@ class WebhookService {
       trackingUrl: trackingUrlBase || "https://meuapp.com",
     };
 
-    let finalWebhookUrl = webhookUrl.trim();
-    if (
-      !finalWebhookUrl.startsWith("http://") &&
-      !finalWebhookUrl.startsWith("https://")
-    ) {
-      finalWebhookUrl = "https://" + finalWebhookUrl;
-    }
+    const finalWebhookUrl = normalizeWebhookUrl(webhookUrl);
 
     try {
       const response = await fetch(finalWebhookUrl, {
@@ -136,14 +137,7 @@ class WebhookService {
       return { success: false, message: "URL do webhook não configurada." };
 
     const payload: CampaignWebhookPayload = { campaign_id: CAMPAIGN_TEST_ID };
-
-    let finalWebhookUrl = webhookUrl.trim();
-    if (
-      !finalWebhookUrl.startsWith("http://") &&
-      !finalWebhookUrl.startsWith("https://")
-    ) {
-      finalWebhookUrl = "https://" + finalWebhookUrl;
-    }
+    const finalWebhookUrl = normalizeWebhookUrl(webhookUrl);
 
     try {
       const response = await fetch(finalWebhookUrl, {
@@ -195,6 +189,29 @@ class WebhookService {
     }
   }
 
+  /**
+   * Dispara (ou retoma) o envio de uma campanha no n8n. O n8n só processa os
+   * destinatários ainda 'pending', então chamar de novo não reenvia para quem
+   * já recebeu. Retorna false se o n8n não respondeu 2xx.
+   */
+  public async triggerCampaign(
+    webhookUrl: string,
+    campaignId: string,
+  ): Promise<boolean> {
+    const payload: CampaignWebhookPayload = { campaign_id: campaignId };
+    try {
+      const response = await fetch(normalizeWebhookUrl(webhookUrl), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error(`Falha ao chamar webhook da campanha ${campaignId}:`, error);
+      return false;
+    }
+  }
+
   public async sendWebhook(
     event: WebhookEvent,
     item: any,
@@ -242,13 +259,7 @@ class WebhookService {
         trackingUrl: trackingUrlBase || "",
       };
 
-      let finalWebhookUrl = webhookUrl.trim();
-      if (
-        !finalWebhookUrl.startsWith("http://") &&
-        !finalWebhookUrl.startsWith("https://")
-      ) {
-        finalWebhookUrl = "https://" + finalWebhookUrl;
-      }
+      const finalWebhookUrl = normalizeWebhookUrl(webhookUrl);
 
       try {
         // keepalive: o envio termina mesmo se o cliente fechar a aba logo depois.

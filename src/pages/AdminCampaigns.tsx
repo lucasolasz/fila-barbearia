@@ -18,7 +18,21 @@ import {
 } from "lucide-react";
 import { supabase, Campaign } from "../lib/supabase";
 import { useShopSettings } from "../hooks/useShopSettings";
-import type { CampaignWebhookPayload } from "../services/webhookService";
+import { webhookService } from "../services/webhookService";
+import {
+  CampaignDisplayStatus,
+  CampaignStats,
+  campaignDisplayStatus,
+  canResumeCampaign,
+  summarizeRecipients,
+} from "../lib/campaignProgress";
+
+const STATUS_VIEW: Record<CampaignDisplayStatus, { label: string; color: string }> = {
+  sending: { label: "Enviando...", color: "text-amber-400" },
+  stalled: { label: "Interrompida", color: "text-red-500" },
+  failed: { label: "Falhou ao iniciar", color: "text-red-500" },
+  completed: { label: "Concluída", color: "text-emerald-500" },
+};
 
 export default function AdminCampaigns() {
   const navigate = useNavigate();
@@ -40,9 +54,10 @@ export default function AdminCampaigns() {
   const [showSent, setShowSent] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [recipientStats, setRecipientStats] = useState<
-    Record<string, { sent: number; error: number; invalid: number; pending: number; total: number }>
-  >({});
+  const [recipientStats, setRecipientStats] = useState<Record<string, CampaignStats>>({});
+  const [resumingId, setResumingId] = useState<string | null>(null);
+  // Relógio da tela: faz "Enviando..." virar "Interrompida" sem precisar recarregar.
+  const [now, setNow] = useState(() => new Date());
   const { shopName, logoUrl, campaignWebhookUrl } = useShopSettings();
 
   async function fetchDrafts() {
@@ -66,27 +81,13 @@ export default function AdminCampaigns() {
     }
     const { data, error } = await supabase
       .from("campaign_recipients")
-      .select("campaign_id, status")
+      .select("campaign_id, status, sent_at")
       .in("campaign_id", campaignIds);
     if (error) {
       console.error("Error fetching recipient stats:", error);
       return;
     }
-    const stats: Record<
-      string,
-      { sent: number; error: number; invalid: number; pending: number; total: number }
-    > = {};
-    (data || []).forEach((row: { campaign_id: string; status: string }) => {
-      if (!stats[row.campaign_id]) {
-        stats[row.campaign_id] = { sent: 0, error: 0, invalid: 0, pending: 0, total: 0 };
-      }
-      stats[row.campaign_id].total += 1;
-      if (row.status === "sent") stats[row.campaign_id].sent += 1;
-      else if (row.status === "error") stats[row.campaign_id].error += 1;
-      else if (row.status === "invalid_number") stats[row.campaign_id].invalid += 1;
-      else stats[row.campaign_id].pending += 1;
-    });
-    setRecipientStats(stats);
+    setRecipientStats(summarizeRecipients(data || []));
   }
 
   async function fetchSentCampaigns() {
@@ -155,8 +156,11 @@ export default function AdminCampaigns() {
       )
       .subscribe();
 
+    const clock = setInterval(() => setNow(new Date()), 60_000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(clock);
     };
   }, [navigate]);
 
@@ -179,6 +183,11 @@ export default function AdminCampaigns() {
 
       if (error) throw error;
       toast.success("Rascunho salvo!");
+      // Fecha o formulário e limpa os campos: a próxima "Nova Campanha" começa do zero.
+      setCampaignTitle("");
+      setMessageText("");
+      setSelectedContacts([]);
+      setShowForm(false);
       fetchDrafts();
     } catch (error) {
       toast.error("Falha ao salvar rascunho");
@@ -297,6 +306,45 @@ export default function AdminCampaigns() {
     );
   };
 
+  /**
+   * Marca a campanha como 'sending' e chama o n8n. Usado no primeiro envio e
+   * no "Retomar envio". Se o n8n não aceitar, marca 'failed' (permite retomar).
+   */
+  async function startCampaignSend(campaignId: string): Promise<boolean> {
+    if (!campaignWebhookUrl) return false;
+
+    // updated_at marca o início deste disparo: conta como atividade para o cálculo de "interrompida".
+    await supabase
+      .from("campaigns")
+      .update({ send_status: "sending", updated_at: new Date().toISOString() })
+      .eq("id", campaignId);
+    const accepted = await webhookService.triggerCampaign(campaignWebhookUrl, campaignId);
+    if (!accepted) {
+      await supabase.from("campaigns").update({ send_status: "failed" }).eq("id", campaignId);
+    }
+    return accepted;
+  }
+
+  const handleResumeCampaign = async (campaignId: string) => {
+    if (!campaignWebhookUrl) {
+      toast.error("URL do webhook de campanhas não configurada. Configure em Admin → Configurações.");
+      return;
+    }
+    setResumingId(campaignId);
+    try {
+      if (await startCampaignSend(campaignId)) {
+        toast.success("Envio retomado! Só os contatos pendentes vão receber.");
+      } else {
+        toast.error("Falha ao retomar campanha");
+      }
+      // Recarrega mesmo sem mudança em campaign_recipients (o realtime não avisaria).
+      await fetchSentCampaigns();
+      setNow(new Date());
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   const handleSendCampaign = async () => {
     if (
       !campaignTitle.trim() ||
@@ -347,28 +395,14 @@ export default function AdminCampaigns() {
           })),
         );
 
-      if (recipientsError) throw recipientsError;
-
-      let finalWebhookUrl = campaignWebhookUrl.trim();
-      if (
-        !finalWebhookUrl.startsWith("http://") &&
-        !finalWebhookUrl.startsWith("https://")
-      ) {
-        finalWebhookUrl = "https://" + finalWebhookUrl;
+      if (recipientsError) {
+        // Sem destinatários a campanha não tem o que enviar: desfaz para não sobrar lixo em "Enviadas".
+        await supabase.from("campaigns").delete().eq("id", campaignRow.id);
+        throw recipientsError;
       }
 
-      const response = await fetch(finalWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign_id: campaignRow.id } satisfies CampaignWebhookPayload),
-      });
-
-      if (!response.ok) {
-        await supabase
-          .from("campaigns")
-          .update({ send_status: "failed" })
-          .eq("id", campaignRow.id);
-        throw new Error(`Webhook respondeu ${response.status}`);
+      if (!(await startCampaignSend(campaignRow.id))) {
+        throw new Error("n8n não aceitou o disparo");
       }
 
       toast.success(
@@ -506,28 +540,27 @@ export default function AdminCampaigns() {
                             <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{campaign.message}</p>
                             {(() => {
                               const stats = recipientStats[campaign.id];
+                              const status = campaignDisplayStatus(campaign, stats, now);
+                              const { label, color } = STATUS_VIEW[status];
                               const total = stats?.total || campaign.recipient_count;
-                              const sent = stats?.sent || 0;
-                              const errorCount = (stats?.error || 0) + (stats?.invalid || 0);
-                              const statusLabel =
-                                campaign.send_status === "sending"
-                                  ? "Enviando..."
-                                  : campaign.send_status === "failed"
-                                    ? "Falhou ao iniciar"
-                                    : "Concluída";
-                              const statusColor =
-                                campaign.send_status === "sending"
-                                  ? "text-amber-400"
-                                  : campaign.send_status === "failed"
-                                    ? "text-red-500"
-                                    : "text-emerald-500";
                               return (
                                 <div className="mt-2 space-y-0.5">
-                                  <p className={`text-xs font-bold ${statusColor}`}>{statusLabel}</p>
+                                  <p className={`text-xs font-bold ${color}`}>{label}</p>
                                   <p className="text-xs text-neutral-500">
-                                    {sent}/{total} enviadas
-                                    {errorCount > 0 && ` · ${errorCount} com erro`}
+                                    {stats?.sent || 0}/{total} enviadas
+                                    {!!stats?.failed && ` · ${stats.failed} com erro`}
                                   </p>
+                                  {canResumeCampaign(status) && (
+                                    <button
+                                      onClick={() => handleResumeCampaign(campaign.id)}
+                                      disabled={resumingId === campaign.id}
+                                      className="mt-1 text-xs font-bold text-amber-400 hover:text-amber-300 underline disabled:opacity-50"
+                                    >
+                                      {resumingId === campaign.id
+                                        ? "Retomando..."
+                                        : `Retomar envio (${stats?.pending} pendentes)`}
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })()}

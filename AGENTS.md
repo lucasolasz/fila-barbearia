@@ -16,6 +16,7 @@ Fila digital para uma barbearia com apenas 1 barbeiro.
 - Toda mensagem de envio unico (NEXT, NEAR, entrada) e marcada no banco ANTES de enviar (`src/lib/queueNotificationFlags.ts`), para dois paineis abertos nao enviarem em dobro.
 - Mensagem de entrada (JOINED) sai do site do cliente e grava `joined_notified_at`. Se ficar vazia por mais de 1 min, o painel do barbeiro reenvia.
 - Atendimento estourado: a duracao vira "tempo decorrido + 10 min" (teto 180) a cada ciclo do n8n.
+- Campanha: o site grava a campanha e os destinatarios (`campaign_recipients`, status `pending`) e chama o n8n so com `{ campaign_id }`. O n8n envia apenas os `pending`. Sem envio ha 10 min, a tela mostra "Interrompida" e permite "Retomar envio", que chama o n8n de novo sem reenviar para quem ja recebeu. Regra em `src/lib/campaignProgress.ts`.
 
 # Locais de hospedagem
 
@@ -24,7 +25,7 @@ Fila digital para uma barbearia com apenas 1 barbeiro.
 
 # Banco de dados
 
-- O MCP supabase configurado em modo leitura está lendo dados de producao e o projeto que esta sendo executado aqui está em desenvolvimento.
+- O MCP supabase (`.mcp.json`, project_ref `cvyhwjhkoikzophdbkxs`) esta em modo leitura e aponta para a base de DESENVOLVIMENTO, a mesma do projeto executado aqui.
 
 # Regras de desenvolvimento
 
