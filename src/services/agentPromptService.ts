@@ -1,15 +1,16 @@
 import { AgentPromptVersion, supabase } from "../lib/supabase";
 
 /**
- * Prompt do agente de WhatsApp (workflow n8n "Agente - Doncabellone").
+ * Base de conhecimento do agente de WhatsApp (workflow n8n "Agente - Doncabellone").
+ *
+ * Aqui fica só o que o barbeiro muda (dados, preços, horários, avisos).
+ * As regras de comportamento são fixas no nó do agente no n8n, que insere
+ * este texto no meio do prompt, na seção "7. BASE DE CONHECIMENTO".
  *
  * Histórico append-only em `agent_prompt_versions`: salvar sempre insere
  * uma linha nova e o n8n usa a mais recente. Restaurar uma versão antiga
  * é salvar o texto dela de novo.
  */
-
-/** Token trocado pela data/hora de São Paulo no nó do agente no n8n. */
-export const PROMPT_DATETIME_TOKEN = "[DATA_HORA_ATUAL]";
 
 const TABLE = "agent_prompt_versions";
 

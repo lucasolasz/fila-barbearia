@@ -2,10 +2,7 @@ import { Bot, History, Loader2, RotateCcw, Save } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AgentPromptVersion } from "../lib/supabase";
-import {
-  agentPromptService,
-  PROMPT_DATETIME_TOKEN,
-} from "../services/agentPromptService";
+import { agentPromptService } from "../services/agentPromptService";
 
 const PREVIEW_LENGTH = 80;
 
@@ -24,7 +21,8 @@ function previewOf(content: string) {
 }
 
 /**
- * Seção do admin para editar o prompt do agente de WhatsApp.
+ * Seção do admin para editar a base de conhecimento do agente de WhatsApp.
+ * As regras de comportamento ficam fixas no nó do agente no n8n.
  * Tem botão de salvar próprio: cada salvamento vira uma versão nova.
  */
 export default function AgentPromptSettings() {
@@ -100,12 +98,10 @@ export default function AgentPromptSettings() {
         ) : (
           <>
             <p className="text-sm text-neutral-400">
-              Instruções que o assistente segue ao responder os clientes.
-              Escreva{" "}
-              <code className="rounded bg-neutral-800 px-1 text-emerald-400">
-                {PROMPT_DATETIME_TOKEN}
-              </code>{" "}
-              onde o assistente precisa saber a data e hora atuais.
+              Texto livre com as informações da barbearia que o assistente
+              usa para responder: preços, horários, produtos, avisos etc. O
+              jeito de conversar e as regras da fila já são fixos no
+              assistente.
             </p>
 
             <textarea
